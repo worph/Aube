@@ -442,8 +442,13 @@ Recorded at the end of M6 (2026-11-03). Each is deliberate; the sections above d
 | Busy backend on a Preview | wait | fail at once as `busy` | Someone is watching a Preview; waiting minutes silently is worse |
 | Icons | ImageMagick | `web/scripts/icons.mjs` (resvg) renders the PNGs from the SVGs in the repo | No system dependency |
 | Chat confirmations on memory writes | none | none for `memory_write`; `memory_delete` and `memory_restore` are confirmed in the chat (the nightly run has full access) | As in ARCHITECTURE §7 |
+| Day band with nothing to place | always shown | left out; the brief takes the full width | An empty 24h band (a failure brief, a quiet day) only took space |
 
-Not verified in a real browser during the build: the in-container browser MCP answered
-`421 Misdirected Request`, and pulling a headless-Chrome image was not allowed. The pages were
-checked through the API, the type checker and a production build; web push was tested with a
-mocked push service. A first look on a real phone is still to do.
+Checked in a real browser on 2026-11-03 (desktop Chrome on the host, driven over CDP, plus a
+390×844 phone emulation), against the Docker image: Settings (save, Beacon discovery, LLM test),
+Master prompt (versions, diff, Preview), Briefs (day band, event → brief highlight, failure brief,
+empty state) and Chat with the memory panel. That pass found and fixed a crash on every chat
+message (an effect returned `scrollIntoView()`'s Promise as its cleanup), a brief detail that
+stayed stale when a re-run replaced the day's brief, and a few layout details. The real LLM path
+was exercised up to the `claude-code` container, which answered `auth` (its own login had
+expired); brief content came from a scripted backend. Web push on a real phone is still to do.

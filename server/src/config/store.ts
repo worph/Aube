@@ -135,6 +135,8 @@ function applyMap(doc: YAML.Document, map: YAML.YAMLMap, value: Record<string, u
     if (v === undefined) continue
     const existing = map.get(key, true)
     if (isPlainObject(v) && YAML.isMap(existing)) {
+      // A template's empty `{}` would otherwise stay a one-line flow map once filled.
+      if (existing.flow && existing.items.length === 0 && Object.keys(v).length > 0) existing.flow = false
       applyMap(doc, existing, v)
     } else if (YAML.isScalar(existing) && (v === null || typeof v !== 'object')) {
       // In place, so the scalar keeps its quoting style ("05:00") and its comment.

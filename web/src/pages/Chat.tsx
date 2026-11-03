@@ -24,7 +24,10 @@ export function ChatPage() {
   useEffect(() => {
     if (chat.data) setMessages(chat.data.messages)
   }, [chat.data])
-  useEffect(() => bottom.current?.scrollIntoView({ block: 'end' }), [messages.length])
+  // Braces matter: newer browsers return a Promise from scrollIntoView, and React would call it as a cleanup.
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ block: 'end' })
+  }, [messages.length])
 
   const upsert = (m: ChatMessage) => setMessages((cur) => (cur.some((x) => x.id === m.id) ? cur.map((x) => (x.id === m.id ? m : x)) : [...cur, m]))
 

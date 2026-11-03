@@ -179,7 +179,7 @@ function LlmSection({ llm, connections, onChange }: { llm: AubeConfig['llm']; co
         <div className="mt-3">
           <Status ok={probe.ok}>
             {probe.ok ? `Answered "${probe.reply}" in ${(probe.ms / 1000).toFixed(1)} s.` : `${probe.cls ? `[${probe.cls}] ` : ''}${probe.error}`}
-            {probe.models && ` Models: ${probe.models.join(', ') || 'none listed'}.`}
+            {probe.models && <div className="mt-1 text-ink-500">Models: {probe.models.join(', ') || 'none listed'}.</div>}
           </Status>
         </div>
       )}

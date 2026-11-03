@@ -24,6 +24,8 @@ describe('config store', () => {
     expect(text).toContain('# when the brief is prepared')
     expect(text).toContain('# Aube configuration.')
     expect(text).toContain('url: http://beacon:9300/mcp/')
+    // The template's empty {} becomes a block map once filled, not one long flow line.
+    expect(text).toMatch(/^connections:\n  beacon:\n/m)
     expect(new ConfigStore(ctx.paths.config).raw().connections.beacon?.via).toBe('beacon')
   })
 

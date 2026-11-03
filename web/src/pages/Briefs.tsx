@@ -16,14 +16,16 @@ export function BriefsPage({ header }: { header?: ReactNode }) {
     refetchInterval: (q) => (isRunning(q.state.data?.schedule.active?.status) ? 3000 : 60_000),
   })
   const date = params.date ?? list.data?.briefs[0]?.date
-  const brief = useQuery({ queryKey: ['brief', date], queryFn: () => getBrief(date!), enabled: !!date })
+  // The day's run id is in the key: when a newer run replaces that day's brief, the detail refetches.
+  const dayRunId = list.data?.briefs.find((b) => b.date === date)?.runId
+  const brief = useQuery({ queryKey: ['brief', date, dayRunId], queryFn: () => getBrief(date!), enabled: !!date })
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   const runNow = async () => {
     setMsg(null)
     try {
-      const { runId } = await startRun('manual')
-      setMsg({ ok: true, text: `Run #${runId} started. The brief appears here when it is ready.` })
+      // No success note: the header shows "Run #N running…" for as long as it runs.
+      await startRun('manual')
       await qc.invalidateQueries({ queryKey: ['briefs'] })
     } catch (err) {
       setMsg({ ok: false, text: err instanceof ApiError ? err.message : String(err) })
@@ -52,9 +54,21 @@ export function BriefsPage({ header }: { header?: ReactNode }) {
       {msg && <Status ok={msg.ok}>{msg.text}</Status>}
       {list.isError && <Status ok={false}>{(list.error as Error).message}</Status>}
 
-      <div className="grid gap-4 lg:grid-cols-[12rem_1fr]">
+      {list.data?.briefs.length === 0 && (
+        <div className="rounded-lg border border-dashed border-ink-300 p-8 text-center text-sm text-ink-500 dark:border-ink-700">
+          No brief yet. Set up the LLM in{' '}
+          <Link to="/settings" className="underline">
+            Settings
+          </Link>
+          , write a{' '}
+          <Link to="/prompt" className="underline">
+            master prompt
+          </Link>
+          , then <strong>Run now</strong>.
+        </div>
+      )}
+      <div className={`grid gap-4 lg:grid-cols-[12rem_1fr] ${list.data?.briefs.length === 0 ? 'hidden' : ''}`}>
         <nav className="flex gap-2 overflow-x-auto lg:flex-col lg:overflow-visible">
-          {list.data?.briefs.length === 0 && <p className="text-sm text-ink-500">No brief yet. Set up the LLM in Settings, write a master prompt, then Run now.</p>}
           {list.data?.briefs.map((b) => (
             <Link
               key={b.date}

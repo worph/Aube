@@ -4,10 +4,12 @@ import { DayBand } from './DayBand'
 import { Markdown } from './Markdown'
 import { RunPanel } from './RunPanel'
 
-/** One brief: the day band beside the markdown (stacked on a phone, band first), and its run panel. */
+/** One brief: the day band beside the markdown (stacked on a phone, band first; omitted when empty), and its run panel. */
 export function BriefDisplay({ brief, timezone, today }: { brief: BriefView; timezone: string; today: string }) {
   const md = useRef<HTMLDivElement>(null)
   const [flash, setFlash] = useState<Element | null>(null)
+  // An empty band (a failure brief, or a day with nothing timed) only takes space.
+  const hasBand = brief.events.length + brief.blocks.length > 0
 
   const highlight = (title: string) => {
     const root = md.current
@@ -32,11 +34,13 @@ export function BriefDisplay({ brief, timezone, today }: { brief: BriefView; tim
           {brief.shape === 'failure' ? 'This is a failure brief: the run could not produce one.' : 'Shown as the backend wrote it: the answer was not in the expected shape.'}
         </div>
       )}
-      <div className="grid gap-4 md:grid-cols-[minmax(260px,340px)_1fr]">
-        <div className="md:sticky md:top-16 md:self-start">
-          <DayBand date={brief.date} timezone={timezone} events={brief.events} blocks={brief.blocks} asOf={brief.asOf} isToday={brief.date === today} onSelect={highlight} />
-          {brief.itemsDropped > 0 && <p className="mt-1 text-xs text-ink-500">{brief.itemsDropped} item(s) could not be placed.</p>}
-        </div>
+      <div className={`grid gap-4 ${hasBand ? 'md:grid-cols-[minmax(260px,340px)_1fr]' : ''}`}>
+        {hasBand && (
+          <div className="md:sticky md:top-16 md:self-start">
+            <DayBand date={brief.date} timezone={timezone} events={brief.events} blocks={brief.blocks} asOf={brief.asOf} isToday={brief.date === today} onSelect={highlight} />
+            {brief.itemsDropped > 0 && <p className="mt-1 text-xs text-ink-500">{brief.itemsDropped} item(s) could not be placed.</p>}
+          </div>
+        )}
         <div className="min-w-0 rounded-lg border border-ink-200 bg-white p-4 dark:border-ink-800 dark:bg-ink-900">
           <Markdown ref={md} text={brief.markdown} />
         </div>

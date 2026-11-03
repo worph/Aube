@@ -137,7 +137,7 @@ body {
 }
 
 .prose-aube pre {
-  @apply overflow-x-auto rounded-lg bg-ink-200/60 p-3;
+  @apply overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-ink-200/60 p-3;
 }
 
 /* The block already carries the background; the code inside must not repeat it. */
