@@ -1,0 +1,21 @@
+{
+  "name": "aube",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A self-hosted morning brief: master prompt + memory in, one brief and day band out",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "workspaces": ["shared", "server", "web"],
+  "scripts": {
+    "build": "npm run build --workspace shared && npm run build --workspace web && npm run build --workspace server",
+    "dev": "npm run dev --workspace server & npm run dev --workspace web",
+    "test": "vitest run",
+    "typecheck": "tsc --build && tsc -p web/tsconfig.json --noEmit",
+    "db:generate": "npm run db:generate --workspace server"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

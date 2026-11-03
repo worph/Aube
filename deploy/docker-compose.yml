@@ -1,0 +1,14 @@
+# Plain compose, for running Aube anywhere. On a Yundera box use Apps/Aube/docker-compose.yml.
+# Put AppShield (or any auth proxy) in front before exposing it: Aube has no login of its own.
+services:
+  aube:
+    build: { context: .., dockerfile: deploy/Dockerfile }
+    image: ghcr.io/worph/aube:dev
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Paris
+      # LLM_API_KEY: ...        # referenced as ${LLM_API_KEY} in config.yaml
+    volumes:
+      - ./data:/data
+    ports:
+      - "127.0.0.1:8080:8080"

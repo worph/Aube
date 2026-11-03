@@ -1,0 +1,38 @@
+# Aube configuration. Edited by the Settings page and the admin chat; hand edits are fine —
+# comments and key order are preserved on save. Secrets are never written here: use ${VAR}
+# references, resolved from the container environment (or data/secrets.env).
+
+timezone: Europe/Paris
+run_at: "05:00"        # when the brief is prepared
+notify_at: "07:00"     # when the push goes out (or as soon as the brief is ready, if later)
+# public_url: https://aube-<you>.nsl.sh   # deep links in push and add-ons
+
+llm:
+  base_url: ""                  # any OpenAI-compatible endpoint, e.g. http://claude-code:9091/v1
+  api_key: ${LLM_API_KEY}
+  model: ""
+  tool_mode: backend            # backend: the LLM uses its own tools | aube: Aube runs the tool loop
+  timeout_s: 1800
+  extra_body: {}                # passed through untouched
+  tool_connections: []          # tool_mode aube only
+  max_tool_rounds: 30
+
+connections: {}
+#  beacon:
+#    transport: http
+#    url: http://beacon:9300/mcp/
+#    via: beacon
+
+mcp_endpoint:
+  enabled: false                # Aube's own MCP endpoint (memory + briefs) at /mcp
+  token: ${AUBE_MCP_TOKEN}
+
+memory:
+  max_file_kb: 256
+  max_image_kb: 2048
+  max_total_mb: 50
+
+retention:
+  artifact_days: 30
+
+addons: []
