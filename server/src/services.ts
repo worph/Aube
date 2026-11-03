@@ -1,6 +1,7 @@
 import { MemoryStore } from './memory/store.js'
 import { Notifier } from './notify/index.js'
 import { PushService } from './notify/push.js'
+import { addonChannels } from './notify/addons.js'
 import { Runner, type RunnerOptions } from './run/runner.js'
 import { Scheduler } from './scheduler.js'
 import type { AppContext } from './context.js'
@@ -18,6 +19,7 @@ export function makeServices(ctx: AppContext, opts: Omit<RunnerOptions, 'onDone'
   const notifier = new Notifier(ctx)
   const push = new PushService(ctx)
   notifier.addChannel(push.channel())
+  notifier.addProvider(() => addonChannels(ctx))
   let scheduler: Scheduler | undefined
   const runner = new Runner(ctx, { ...opts, onDone: (id) => scheduler?.onRunDone(id) })
   scheduler = new Scheduler(ctx, runner, notifier)

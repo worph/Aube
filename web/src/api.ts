@@ -188,3 +188,6 @@ export const getMemoryVersion = (id: number, side: 'before' | 'after') =>
   api<{ path: string; kind: 'md' | 'image'; content: string | null; encoding: string }>(`/api/v1/memory/versions/${id}?side=${side}`)
 export const restoreMemory = (journalId: number, side?: 'before' | 'after') => api<{ path: string }>('/api/v1/memory/restore', { method: 'POST', json: { journalId, ...(side ? { side } : {}) } })
 export const memoryImageUrl = (path: string) => `/api/v1/memory/raw?path=${encodeURIComponent(path)}`
+
+import type { Addon } from '@aube/shared'
+export const testAddon = (addon: Addon) => api<{ ok: boolean; ms: number; sent?: number; error?: string }>('/api/v1/config/test', { method: 'POST', json: { kind: 'addon', addon } })

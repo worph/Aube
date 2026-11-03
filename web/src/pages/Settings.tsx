@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, type ReactNode } from 'react'
-import type { AubeConfig, Connection } from '@aube/shared'
-import { ApiError, getConfig, saveConfig, testConnection, testLlm, type ConnectionProbe, type LlmProbe } from '../api'
+import type { Addon, AubeConfig, Connection } from '@aube/shared'
+import { ApiError, getConfig, saveConfig, testAddon, testConnection, testLlm, type ConnectionProbe, type LlmProbe } from '../api'
 import { Button, Card, Field, Input, Select, Status, Textarea } from '../components/ui'
 
 /**
@@ -76,6 +76,7 @@ export function SettingsPage({ extra }: { extra?: ReactNode }) {
       <ScheduleSection draft={draft} set={set} />
       <ConnectionsSection connections={draft.connections} onChange={(c) => set('connections', c)} />
       <EndpointSection value={draft.mcp_endpoint} onChange={(v) => set('mcp_endpoint', v)} />
+      <AddonsSection addons={draft.addons} connections={Object.keys(draft.connections)} saved={q.data!.config} onChange={(a) => set('addons', a)} />
       {extra}
     </div>
   )
@@ -371,5 +372,115 @@ function EndpointSection({ value, onChange }: { value: AubeConfig['mcp_endpoint'
     BEACONIFY_UPSTREAM_URL: http://aube:8080/mcp
     BEACONIFY_AUTH: "Bearer \${AUBE_MCP_TOKEN}"`}</pre>
     </Card>
+  )
+}
+
+function AddonsSection({ addons, connections, saved, onChange }: { addons: Addon[]; connections: string[]; saved: AubeConfig; onChange: (a: Addon[]) => void }) {
+  const add = () =>
+    onChange([
+      ...addons,
+      { name: `addon-${addons.length + 1}`, enabled: false, connection: connections[0] ?? '', tool: 'telegram-mcp__send_message', mode: 'headline', format: 'telegram-markdown', args: { text: '{{content}}' } },
+    ])
+  return (
+    <Card title="Notification add-ons" actions={<Button onClick={add}>Add</Button>}>
+      <p className="mb-3 text-sm text-ink-500">
+        In-app and web push are always on. An add-on also sends the brief through an MCP tool (Telegram, Discord, ntfy…). Template variables in args:{' '}
+        <code>{'{{content}} {{headline}} {{title}} {{url}} {{date}}'}</code>. Links need a public URL (Schedule).
+      </p>
+      <div className="space-y-3">
+        {addons.length === 0 && <p className="text-sm text-ink-500">No add-ons.</p>}
+        {addons.map((a, i) => (
+          <AddonRow
+            key={i}
+            addon={a}
+            connections={connections}
+            savedEqual={JSON.stringify(saved.addons[i]) === JSON.stringify(a) && !!saved.connections[a.connection]}
+            onChange={(next) => onChange(addons.map((x, j) => (j === i ? next : x)))}
+            onRemove={() => onChange(addons.filter((_, j) => j !== i))}
+          />
+        ))}
+      </div>
+    </Card>
+  )
+}
+
+function AddonRow({ addon, connections, savedEqual, onChange, onRemove }: { addon: Addon; connections: string[]; savedEqual: boolean; onChange: (a: Addon) => void; onRemove: () => void }) {
+  const [args, setArgs] = useState(JSON.stringify(addon.args, null, 2))
+  const [argsError, setArgsError] = useState<string | null>(null)
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const up = (patch: Partial<Addon>) => onChange({ ...addon, ...patch })
+  const test = async () => {
+    setBusy(true)
+    try {
+      const r = await testAddon(addon)
+      setResult(r.ok ? { ok: true, text: `Sent ${r.sent} test message(s).` } : { ok: false, text: r.error ?? 'failed' })
+    } catch (err) {
+      setResult({ ok: false, text: (err as Error).message })
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="rounded-md border border-ink-200 p-3 dark:border-ink-800">
+      <div className="mb-2 flex items-center gap-2">
+        <label className="flex items-center gap-1 text-sm">
+          <input type="checkbox" checked={addon.enabled} onChange={(e) => up({ enabled: e.target.checked })} /> Enabled
+        </label>
+        <Input className="max-w-48" value={addon.name} onChange={(e) => up({ name: e.target.value })} />
+        <div className="flex-1" />
+        <Button onClick={test} disabled={busy || !savedEqual} title={savedEqual ? 'Send a test message' : 'Save first: the test uses the saved connection'}>
+          Test
+        </Button>
+        <Button variant="ghost" onClick={onRemove}>
+          Remove
+        </Button>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-4">
+        <Field label="Connection">
+          <Select value={addon.connection} onChange={(e) => up({ connection: e.target.value })}>
+            <option value="">—</option>
+            {connections.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Tool" hint="server__tool behind a Beacon">
+          <Input value={addon.tool} onChange={(e) => up({ tool: e.target.value })} />
+        </Field>
+        <Field label="Send">
+          <Select value={addon.mode} onChange={(e) => up({ mode: e.target.value as Addon['mode'] })}>
+            <option value="headline">headline + link</option>
+            <option value="full">the full brief</option>
+          </Select>
+        </Field>
+        <Field label="Format">
+          <Select value={addon.format} onChange={(e) => up({ format: e.target.value as Addon['format'] })}>
+            <option value="telegram-markdown">Telegram MarkdownV2</option>
+            <option value="plain">plain text</option>
+          </Select>
+        </Field>
+        <div className="sm:col-span-4">
+          <Field label="Tool arguments (JSON)" hint={argsError ?? undefined}>
+            <Textarea
+              rows={3}
+              value={args}
+              onChange={(e) => {
+                setArgs(e.target.value)
+                try {
+                  up({ args: JSON.parse(e.target.value || '{}') })
+                  setArgsError(null)
+                } catch {
+                  setArgsError('Not valid JSON — not applied.')
+                }
+              }}
+            />
+          </Field>
+        </div>
+      </div>
+      {result && <Status ok={result.ok}>{result.text}</Status>}
+    </div>
   )
 }

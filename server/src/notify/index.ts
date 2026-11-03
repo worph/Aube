@@ -15,6 +15,7 @@ export interface Channel {
 
 export class Notifier {
   private channels: Channel[] = []
+  private providers: Array<() => Channel[]> = []
   /** Resolves when the last notification's channels have settled (tests). */
   lastSend: Promise<void> = Promise.resolve()
 
@@ -22,6 +23,11 @@ export class Notifier {
 
   addChannel(channel: Channel): void {
     this.channels.push(channel)
+  }
+
+  /** Channels resolved at send time (add-ons follow the config without a restart). */
+  addProvider(provider: () => Channel[]): void {
+    this.providers.push(provider)
   }
 
   /** Notify the day's brief of `date`, once. */
@@ -39,7 +45,7 @@ export class Notifier {
     updateRun(this.ctx, runId, { notifiedAt: at, ...(run.status === 'READY' ? { status: 'NOTIFIED' as const } : {}) })
     this.record(runId, 'in-app', null)
     this.lastSend = Promise.allSettled(
-      this.channels.map((c) =>
+      [...this.channels, ...this.providers.flatMap((p) => p())].map((c) =>
         c.send(runId).then(
           (r) => r !== 'skip' && this.record(runId, c.name, null),
           (err: unknown) => {
