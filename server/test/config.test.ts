@@ -29,6 +29,24 @@ describe('config store', () => {
     expect(new ConfigStore(ctx.paths.config).raw().connections.beacon?.via).toBe('beacon')
   })
 
+  it('adds settings from a newer version next to their neighbours, times quoted', async () => {
+    const ctx = makeContext()
+    // A v1.0 file: no morning_run / evening_at yet.
+    const v10 = readFileSync(ctx.paths.config, 'utf8').replace(/^morning_run:.*\n/m, '').replace(/^evening_at:.*\n/m, '')
+    writeFileSync(ctx.paths.config, v10)
+    const store = new ConfigStore(ctx.paths.config)
+    await store.save({ ...store.raw(), evening_at: '21:00' })
+    const text = readFileSync(ctx.paths.config, 'utf8')
+    expect(text).toMatch(/^notify_at: "07:00".*\nmorning_run: true\nevening_at: "21:00"\n/m)
+    expect(new ConfigStore(ctx.paths.config).raw().evening_at).toBe('21:00')
+  })
+
+  it('refuses a schedule where nothing ever runs', async () => {
+    const ctx = makeContext()
+    await expect(ctx.config.save({ ...ctx.config.raw(), morning_run: false, evening_at: '' })).rejects.toBeInstanceOf(ConfigRejected)
+    await expect(ctx.config.save({ ...ctx.config.raw(), morning_run: false, evening_at: '21:00' })).resolves.toBeTruthy()
+  })
+
   it('refuses literal secrets and invalid values, leaving the file alone', async () => {
     const ctx = makeContext()
     const before = readFileSync(ctx.paths.config, 'utf8')
@@ -54,7 +72,9 @@ describe('config store', () => {
 
   it('generates the MCP token on first boot', () => {
     delete process.env.AUBE_MCP_TOKEN
+    delete process.env.AUBE_ADMIN_MCP_TOKEN
     const ctx = makeContext()
     expect(readFileSync(ctx.paths.secrets, 'utf8')).toMatch(/^AUBE_MCP_TOKEN=[0-9a-f]{64}$/m)
+    expect(readFileSync(ctx.paths.secrets, 'utf8')).toMatch(/^AUBE_ADMIN_MCP_TOKEN=[0-9a-f]{64}$/m)
   })
 })

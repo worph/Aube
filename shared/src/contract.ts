@@ -38,6 +38,18 @@ export const BlockSchema = z.object({
   kind: z.string().optional(),
 })
 
+/** The recommended wake-up time (v1.1, mostly from the evening phase). */
+export const WakeUpSchema = z.object({
+  time: Time.refine((t) => t !== '24:00', 'a wake-up time cannot be 24:00'),
+  reason: z.string().max(200).optional(),
+})
+
+export interface WakeUp {
+  time: string
+  timeMin: number
+  reason?: string
+}
+
 export const SourceSchema = z.object({ name: z.string(), ok: z.boolean(), note: z.string().optional() })
 
 export const BriefSchema = z.object({
@@ -48,6 +60,8 @@ export const BriefSchema = z.object({
   blocks: z.array(z.unknown()).optional(),
   sources: z.array(SourceSchema).optional(),
   memory_notes: z.string().optional(),
+  // Validated alone below: a bad wake-up is dropped and counted, never the brief.
+  wake_up: z.unknown().optional(),
 })
 
 export interface NormEvent {
@@ -79,6 +93,7 @@ export interface ParsedAnswer {
   memoryNotes?: string
   events: NormEvent[]
   blocks: NormBlock[]
+  wakeUp?: WakeUp
   dropped: number
 }
 
@@ -141,6 +156,13 @@ export function parseAnswer(value: unknown): ParseResult {
     blocks.push({ title: v.title, kind, ...s, overlapsEvent })
   }
 
+  let wakeUp: WakeUp | undefined
+  if (b.wake_up !== undefined && b.wake_up !== null) {
+    const w = WakeUpSchema.safeParse(b.wake_up)
+    if (w.success) wakeUp = { time: w.data.time, timeMin: toMinutes(w.data.time), ...(w.data.reason ? { reason: w.data.reason } : {}) }
+    else dropped++
+  }
+
   return {
     ok: true,
     answer: {
@@ -151,6 +173,7 @@ export function parseAnswer(value: unknown): ParseResult {
       ...(b.memory_notes ? { memoryNotes: b.memory_notes } : {}),
       events: events.sort((a, z) => (a.startMin ?? -1) - (z.startMin ?? -1)),
       blocks: blocks.sort((a, z) => a.startMin - z.startMin),
+      ...(wakeUp ? { wakeUp } : {}),
       dropped,
     },
   }
@@ -173,5 +196,6 @@ export const CONTRACT_EXAMPLE = {
     { name: 'calendar', ok: true },
     { name: 'uptime', ok: false, note: 'timeout' },
   ],
+  wake_up: { time: '06:40', reason: 'optional in the morning; required in the evening phase: one line on why' },
   memory_notes: 'optional: what you wrote to memory, in one line',
 }

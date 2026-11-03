@@ -131,9 +131,16 @@ function applyMap(doc: YAML.Document, map: YAML.YAMLMap, value: Record<string, u
     const key = YAML.isScalar(item.key) ? String(item.key.value) : String(item.key)
     if (!(key in value) || value[key] === undefined) map.delete(key)
   }
+  let prev: string | undefined
   for (const [key, v] of Object.entries(value)) {
     if (v === undefined) continue
     const existing = map.get(key, true)
+    const after = prev
+    prev = key
+    if (existing === undefined) {
+      insertAfter(map, after, key, newNode(doc, v))
+      continue
+    }
     if (isPlainObject(v) && YAML.isMap(existing)) {
       // A template's empty `{}` would otherwise stay a one-line flow map once filled.
       if (existing.flow && existing.items.length === 0 && Object.keys(v).length > 0) existing.flow = false
@@ -142,7 +149,7 @@ function applyMap(doc: YAML.Document, map: YAML.YAMLMap, value: Record<string, u
       // In place, so the scalar keeps its quoting style ("05:00") and its comment.
       if (existing.value !== v) existing.value = v
     } else if (!sameValue(existing, v)) {
-      const node = doc.createNode(v) as YAML.Node
+      const node = newNode(doc, v)
       if (existing && YAML.isNode(existing)) {
         node.comment = existing.comment
         node.commentBefore = existing.commentBefore
@@ -150,6 +157,24 @@ function applyMap(doc: YAML.Document, map: YAML.YAMLMap, value: Record<string, u
       map.set(key, node)
     }
   }
+}
+
+/** Times are written quoted: a YAML 1.1 reader takes a bare `21:00` for a base-60 number. */
+function newNode(doc: YAML.Document, v: unknown): YAML.Node {
+  const node = doc.createNode(v) as YAML.Node
+  if (YAML.isScalar(node) && typeof v === 'string' && /^\d{1,2}:\d{2}$/.test(v)) node.type = 'QUOTE_DOUBLE'
+  return node
+}
+
+/**
+ * A key the file does not have yet (a setting added in a later version) goes after its neighbour in
+ * the saved object, not at the end of the file, so it sits with the settings it belongs to.
+ */
+function insertAfter(map: YAML.YAMLMap, after: string | undefined, key: string, node: YAML.Node) {
+  const pair = new YAML.Pair(new YAML.Scalar(key), node)
+  const idx = after === undefined ? -1 : map.items.findIndex((i) => (YAML.isScalar(i.key) ? String(i.key.value) : String(i.key)) === after)
+  if (after !== undefined && idx === -1) map.items.push(pair)
+  else map.items.splice(idx + 1, 0, pair)
 }
 
 function sameValue(node: unknown, v: unknown): boolean {

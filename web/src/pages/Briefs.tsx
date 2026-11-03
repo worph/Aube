@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { addDays } from '@aube/shared'
 import { ApiError, getBrief, getBriefs, isRunning, startRun } from '../api'
 import { BriefDisplay } from '../components/BriefDisplay'
 import { Button, Status } from '../components/ui'
@@ -21,11 +22,11 @@ export function BriefsPage({ header }: { header?: ReactNode }) {
   const brief = useQuery({ queryKey: ['brief', date, dayRunId], queryFn: () => getBrief(date!), enabled: !!date })
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
-  const runNow = async () => {
+  const runNow = async (phase: 'morning' | 'evening') => {
     setMsg(null)
     try {
       // No success note: the header shows "Run #N running…" for as long as it runs.
-      await startRun('manual')
+      await startRun('manual', undefined, phase)
       await qc.invalidateQueries({ queryKey: ['briefs'] })
     } catch (err) {
       setMsg({ ok: false, text: err instanceof ApiError ? err.message : String(err) })
@@ -34,6 +35,17 @@ export function BriefsPage({ header }: { header?: ReactNode }) {
 
   const s = list.data?.schedule
   const fmt = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '—')
+  const next = s
+    ? [
+        ...(s.morningRun ? [`prepared ${fmt(s.nextRun)}`] : []),
+        `notified ${fmt(s.nextNotify)}`,
+        ...(s.eveningAt ? [`evening preview ${fmt(s.nextEvening)}`] : []),
+      ].join(', ')
+    : ''
+  const today = list.data?.today
+  const tomorrow = today ? addDays(today, 1) : undefined
+  const dayLabel = (d: string) =>
+    d === today ? 'Today' : d === tomorrow ? 'Tomorrow' : new Date(`${d}T12:00:00`).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })
 
   return (
     <div className="space-y-4">
@@ -41,12 +53,15 @@ export function BriefsPage({ header }: { header?: ReactNode }) {
         <h1 className="text-xl font-semibold">Briefs</h1>
         {s && (
           <span className="text-sm text-ink-500">
-            Next: prepared {fmt(s.nextRun)}, notified {fmt(s.nextNotify)} ({s.timezone})
+            Next: {next} ({s.timezone})
           </span>
         )}
         <div className="flex-1" />
         {s?.active && <span className="text-sm text-amber-600">Run #{s.active.id} {s.active.status.toLowerCase()}…</span>}
-        <Button variant="primary" onClick={runNow} disabled={!!s?.active}>
+        <Button onClick={() => runNow('evening')} disabled={!!s?.active} title="Prepare tomorrow's evening preview now, with a wake-up time">
+          🌙 Prepare tomorrow
+        </Button>
+        <Button variant="primary" onClick={() => runNow('morning')} disabled={!!s?.active} title="Run today's brief now">
           Run now
         </Button>
       </div>
@@ -77,7 +92,9 @@ export function BriefsPage({ header }: { header?: ReactNode }) {
             >
               <div className="font-medium">
                 {b.shape === 'failure' ? '⚠️ ' : ''}
-                {b.date === list.data?.today ? 'Today' : new Date(`${b.date}T12:00:00`).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })}
+                {dayLabel(b.date)}
+                {b.phase === 'evening' && <span title="Evening preview"> 🌙</span>}
+                {b.wakeTime && <span className="ml-1 text-xs font-normal text-amber-700 dark:text-amber-400">⏰ {b.wakeTime}</span>}
               </div>
               <div className="hidden truncate text-xs text-ink-500 lg:block">{b.headline}</div>
             </Link>

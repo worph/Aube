@@ -12,7 +12,7 @@ import { chmodSync, existsSync, readFileSync, renameSync, writeFileSync } from '
 
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
 /** Managed by Aube itself (and by the store's secret generator); not editable from the browser. */
-const RESERVED = new Set(['AUBE_MCP_TOKEN'])
+const RESERVED = new Set(['AUBE_MCP_TOKEN', 'AUBE_ADMIN_MCP_TOKEN'])
 
 /** Names whose current value came from secrets.env, not from the container environment. */
 const fromFile = new Set<string>()

@@ -1,5 +1,6 @@
-import { and, desc, eq, inArray, lt, ne } from 'drizzle-orm'
-import type { BriefListItem, BriefView, NormBlock, NormEvent, ParsedAnswer, RunKind, RunStatus, RunSummary } from '@aube/shared'
+import { and, desc, eq, inArray, lt, ne, sql } from 'drizzle-orm'
+import type { BriefListItem, BriefView, NormBlock, NormEvent, ParsedAnswer, RunKind, RunPhase, RunStatus, RunSummary } from '@aube/shared'
+import { toMinutes } from '@aube/shared'
 import { schema } from '../db/index.js'
 import type { AppContext } from '../context.js'
 
@@ -12,6 +13,7 @@ export function toSummary(r: RunRow): RunSummary {
     id: r.id,
     date: r.date,
     kind: r.kind,
+    phase: r.phase,
     status: r.status,
     toolMode: r.toolMode,
     model: r.model,
@@ -28,7 +30,7 @@ export function toSummary(r: RunRow): RunSummary {
   }
 }
 
-export function createRun(ctx: AppContext, v: { date: string; kind: RunKind; toolMode: string; model: string }): RunRow {
+export function createRun(ctx: AppContext, v: { date: string; kind: RunKind; phase?: RunPhase; toolMode: string; model: string }): RunRow {
   return ctx.db
     .insert(schema.runs)
     .values({ ...v, status: 'PENDING', startedAt: ctx.now().toISOString() })
@@ -57,7 +59,7 @@ export function listArtifacts(ctx: AppContext, runId: number) {
 
 export interface BriefInput {
   shape: 'contract' | 'raw' | 'failure'
-  answer: Pick<ParsedAnswer, 'title' | 'headline' | 'markdown' | 'sources' | 'events' | 'blocks' | 'dropped'> & { memoryNotes?: string }
+  answer: Pick<ParsedAnswer, 'title' | 'headline' | 'markdown' | 'sources' | 'events' | 'blocks' | 'dropped' | 'wakeUp'> & { memoryNotes?: string }
   asOf: string
 }
 
@@ -75,6 +77,8 @@ export function saveBrief(ctx: AppContext, runId: number, date: string, b: Brief
         memoryNotes: b.answer.memoryNotes ?? null,
         itemsDropped: b.answer.dropped,
         asOf: b.asOf,
+        wakeTime: b.answer.wakeUp?.time ?? null,
+        wakeReason: b.answer.wakeUp?.reason ?? null,
       })
       .run()
     b.answer.events.forEach((e, idx) =>
@@ -94,17 +98,44 @@ export function saveBrief(ctx: AppContext, runId: number, date: string, b: Brief
 
 const DONE: RunStatus[] = ['READY', 'NOTIFIED', 'FAILED']
 
-/** The run whose brief is the day's: the latest finished non-preview run of that date with a brief. */
+/** Failure briefs sort after every other brief (ARCHITECTURE §3: a failed run never hides a good one). */
+const failureLast = sql`case when ${schema.briefs.shape} = 'failure' then 1 else 0 end`
+
+/**
+ * The run whose brief is the day's: the latest finished non-preview run of that date whose brief is
+ * not a failure; the latest failure only when every run of the date failed.
+ */
 export function dayRunId(ctx: AppContext, date: string): number | undefined {
   const row = ctx.db
     .select({ id: schema.runs.id })
     .from(schema.runs)
     .innerJoin(schema.briefs, eq(schema.briefs.runId, schema.runs.id))
     .where(and(eq(schema.runs.date, date), ne(schema.runs.kind, 'preview'), inArray(schema.runs.status, DONE)))
-    .orderBy(desc(schema.runs.id))
+    .orderBy(failureLast, desc(schema.runs.id))
     .limit(1)
     .get()
   return row?.id
+}
+
+/** Whether `date` already has a real (non-preview) run of `phase`, finished or not. For the scheduler. */
+export function hasPhaseRun(ctx: AppContext, date: string, phase: RunPhase): boolean {
+  return !!ctx.db
+    .select({ id: schema.runs.id })
+    .from(schema.runs)
+    .where(and(eq(schema.runs.date, date), eq(schema.runs.phase, phase), ne(schema.runs.kind, 'preview')))
+    .get()
+}
+
+/** The latest good evening preview of `date`, for the morning run's prompt. */
+export function eveningPreview(ctx: AppContext, date: string): { headline: string; wakeTime: string | null; wakeReason: string | null } | undefined {
+  return ctx.db
+    .select({ headline: schema.briefs.headline, wakeTime: schema.briefs.wakeTime, wakeReason: schema.briefs.wakeReason })
+    .from(schema.runs)
+    .innerJoin(schema.briefs, eq(schema.briefs.runId, schema.runs.id))
+    .where(and(eq(schema.runs.date, date), eq(schema.runs.phase, 'evening'), ne(schema.runs.kind, 'preview'), ne(schema.briefs.shape, 'failure')))
+    .orderBy(desc(schema.runs.id))
+    .limit(1)
+    .get()
 }
 
 export function briefView(ctx: AppContext, runId: number): BriefView | undefined {
@@ -157,6 +188,8 @@ export function briefView(ctx: AppContext, runId: number): BriefView | undefined
     memoryNotes: b.memoryNotes,
     itemsDropped: b.itemsDropped,
     asOf: b.asOf,
+    phase: run.phase,
+    ...(b.wakeTime ? { wakeUp: { time: b.wakeTime, timeMin: toMinutes(b.wakeTime), ...(b.wakeReason ? { reason: b.wakeReason } : {}) } } : {}),
     events,
     blocks,
     run: toSummary(run),
@@ -167,11 +200,21 @@ export function briefView(ctx: AppContext, runId: number): BriefView | undefined
 
 export function listBriefs(ctx: AppContext, limit = 90): BriefListItem[] {
   const rows = ctx.db
-    .select({ date: schema.briefs.date, runId: schema.briefs.runId, title: schema.briefs.title, headline: schema.briefs.headline, shape: schema.briefs.shape, status: schema.runs.status })
+    .select({
+      date: schema.briefs.date,
+      runId: schema.briefs.runId,
+      title: schema.briefs.title,
+      headline: schema.briefs.headline,
+      shape: schema.briefs.shape,
+      status: schema.runs.status,
+      phase: schema.runs.phase,
+      wakeTime: schema.briefs.wakeTime,
+    })
     .from(schema.briefs)
     .innerJoin(schema.runs, eq(schema.runs.id, schema.briefs.runId))
     .where(and(ne(schema.runs.kind, 'preview'), inArray(schema.runs.status, DONE)))
-    .orderBy(desc(schema.briefs.date), desc(schema.briefs.runId))
+    // Per date, the first row is the day's brief (same rule as dayRunId).
+    .orderBy(desc(schema.briefs.date), failureLast, desc(schema.briefs.runId))
     .all()
   const seen = new Set<string>()
   const out: BriefListItem[] = []

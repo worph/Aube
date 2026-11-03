@@ -8,7 +8,7 @@ brief is waiting in the app and a push notification tells you so.
 
 > *Aube* is French for "dawn": the brief is ready at first light.
 
-> Status: **v1.0.0**, milestones M0–M6, image `ghcr.io/worph/aube:1.0.0` (amd64 + arm64). The model is in
+> Status: **v1.1.0** (evening preview with a wake-up time), image `ghcr.io/worph/aube:1.1.0` (amd64 + arm64). The model is in
 > [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md), the build notes in
 > [`docs/IMPLEMENTATION.md`](./docs/IMPLEMENTATION.md), and the commands in [`CLAUDE.md`](./CLAUDE.md).
 
@@ -53,8 +53,8 @@ or tell the administrator chat.
 |---|---|
 | **Chat** | An administrator chat (like Touchstone's and Newsdesk's). It helps you connect MCP servers and the LLM, write and refine the master prompt, and read or edit the memory. A **memory panel** beside it shows the files, images and their history |
 | **Master prompt** | The editor for what goes into the brief, with version history and a **Preview** that runs it now without notifying anyone |
-| **Briefs** | One brief per day, newest first, each shown beside its **day band** (00:00–24:00: calendar events, and the proposed plan in a lighter lane). Also the web-notification settings for this device and the run log of each night |
-| **Settings** | LLM connection, Beacon discovery, extra MCP connections, Aube's own MCP endpoint, schedule, notification add-ons |
+| **Briefs** | One brief per day, newest first, each shown beside its **day band** (00:00–24:00: calendar events, and the proposed plan in a lighter lane), with the recommended wake-up time when there is one. Also the web-notification settings for this device and the run log of each night |
+| **Settings** | LLM connection, Beacon discovery, extra MCP connections, Aube's own MCP endpoints (memory, admin), schedule, notification add-ons |
 
 ## A master prompt
 
@@ -69,7 +69,14 @@ Organise my day. Write in French, readable in under two minutes.
    Never two leg days in a row.
 6. Meals from Mealie. On Friday I want fish. Quick recipes on days with more than 5h of meetings.
 7. End with a time-blocked plan of the day. I work 9:00 to 18:00, deep work in the morning.
+8. In the evening preview, tell me when to wake up: 45 min before I must leave, never before
+   6:00, 7h30 of sleep if the day allows it.
 ```
+
+**Evening preview (optional).** Set **Settings → Schedule → Evening preview at** (e.g. 21:00) and
+Aube also prepares tomorrow's brief the evening before, with a recommended **wake-up time**, and
+notifies you right away so you can set your alarm. The morning run still refreshes the brief
+(unless you turn it off).
 
 ## Where the tools live
 
@@ -110,6 +117,9 @@ Then, in Aube:
 3. **Settings → Aube MCP endpoint**: enable it so the nightly LLM can write memory (the backend
    must reach `aube__memory_*` through its own Beacon connection).
 4. **Master prompt**: write what you want, **Preview**.
+   Or from Claude: enable **Settings → Admin MCP endpoint** and the `aube-admin` server appears
+   on Beacon with everything the chat can do (`aube-admin__prompt_get`, `…__prompt_save`,
+   `…__settings_save`, `…__run_preview` / `…__run_get`, …). Its writes wait while a run is in progress.
 5. **Briefs**: turn on notifications on your phone (install the app first on iOS).
 
 ### Releasing

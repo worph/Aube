@@ -12,7 +12,7 @@ export interface PromptVersion {
   id: number
   body: string
   savedAt: string
-  savedBy: 'ui' | 'chat' | 'boot'
+  savedBy: 'ui' | 'chat' | 'mcp' | 'boot'
   note: string | null
 }
 
@@ -28,7 +28,7 @@ export function currentPrompt(ctx: AppContext): { body: string; version: PromptV
   return { body, version: row }
 }
 
-export function savePrompt(ctx: AppContext, body: string, by: 'ui' | 'chat', note?: string): PromptVersion {
+export function savePrompt(ctx: AppContext, body: string, by: 'ui' | 'chat' | 'mcp', note?: string): PromptVersion {
   const current = currentPrompt(ctx)
   if (current.body === body) return current.version
   const tmp = `${ctx.paths.masterPrompt}.tmp-${process.pid}`

@@ -9,7 +9,7 @@ import { currentPrompt, listPromptVersions, savePrompt } from '../prompt/store.j
 import { RunBusy } from '../run/runner.js'
 import { defineTool, error, json, text } from './registry.js'
 
-/** Chat-only tools (ARCHITECTURE §6.4): the nightly run and the MCP endpoint never see these. */
+/** Chat tools (ARCHITECTURE §6.4): also served by the admin MCP endpoint; never by the run's endpoint or tool loop. */
 
 export function deepMerge(base: unknown, patch: unknown): unknown {
   if (patch === null) return undefined
@@ -72,7 +72,7 @@ export const chatTools = [
     writes: true,
     confirm: ({ body }, t) => `Save the master prompt as a new version:\n\n${lineSummary(currentPrompt(t.ctx).body, body)}`,
     handler: async ({ body, note }, t) => {
-      const v = savePrompt(t.ctx, body, 'chat', note)
+      const v = savePrompt(t.ctx, body, t.by.startsWith('mcp:') ? 'mcp' : 'chat', note)
       return text(`Saved as version #${v.id}. The next run uses it.`)
     },
   }),
@@ -164,23 +164,29 @@ export const chatTools = [
   defineTool({
     name: 'run_preview',
     title: 'Preview the brief',
-    description: 'Start a preview run now (does not notify, does not replace the day\'s brief). Returns at once; the result appears on the Master prompt page.',
-    input: {},
+    description:
+      "Start a preview run now (does not notify, does not replace the day's brief). phase 'evening' previews tomorrow's evening run (with the wake-up time). Returns at once; the result appears on the Master prompt page.",
+    input: { phase: z.enum(['morning', 'evening']).optional() },
     scope: ['chat'],
     writes: false,
-    handler: async (_a, t) => text(`Preview run #${t.svc.runner.start('preview')} started. It can take several minutes; open the Master prompt page to see it.`),
+    handler: async (a, t) =>
+      text(`Preview run #${t.svc.runner.start('preview', undefined, a.phase ?? 'morning')} started. It can take several minutes; open the Master prompt page to see it.`),
   }),
   defineTool({
     name: 'run_now',
     title: 'Run the brief now',
-    description: "Run today's brief now. It replaces today's brief, and notifies if the notify time has passed.",
-    input: {},
+    description:
+      "Run today's brief now (phase 'morning', the default; it replaces today's brief and notifies if the notify time has passed), or prepare tomorrow's evening preview now (phase 'evening'; notified when ready).",
+    input: { phase: z.enum(['morning', 'evening']).optional() },
     scope: ['chat'],
     writes: true,
-    confirm: () => "Run today's brief now? It replaces today's brief and notifies you if the notify time has already passed.",
-    handler: async (_a, t) => {
+    confirm: (a) =>
+      a.phase === 'evening'
+        ? "Prepare tomorrow's evening preview now? You are notified when it is ready."
+        : "Run today's brief now? It replaces today's brief and notifies you if the notify time has already passed.",
+    handler: async (a, t) => {
       try {
-        return text(`Run #${t.svc.runner.start('manual')} started. It appears on the Briefs page when ready.`)
+        return text(`Run #${t.svc.runner.start('manual', undefined, a.phase ?? 'morning')} started. It appears on the Briefs page when ready.`)
       } catch (err) {
         if (err instanceof RunBusy) return error(err.message)
         throw err

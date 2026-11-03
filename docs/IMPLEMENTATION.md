@@ -84,6 +84,8 @@ data/
 timezone: Europe/Paris
 run_at: "05:00"
 notify_at: "07:00"
+morning_run: true                           # false: no morning run; the evening preview is the day's brief
+evening_at: "21:00"                         # "" = off (default): tomorrow's preview the evening before
 public_url: https://aube-<user>.nsl.sh      # deep links in push and add-ons
 
 llm:
@@ -105,6 +107,10 @@ connections:
 mcp_endpoint:
   enabled: true
   token: ${AUBE_MCP_TOKEN}                    # the beaconify sidecar sends it as a bearer token
+
+admin_endpoint:                               # v1.2: /mcp/admin, the admin toolset
+  enabled: false
+  token: ${AUBE_ADMIN_MCP_TOKEN}              # its own sidecar (aube-admin-mcp), its own token
 
 memory:
   max_file_kb: 256
@@ -129,13 +135,14 @@ field marked secret.
 ## 4. Database
 
 ```
-runs            id, date, kind (scheduled|manual|preview), status, tool_mode, model,
+runs            id, date, kind (scheduled|manual|preview), phase (morning|evening), status, tool_mode, model,
                 started_at, ready_at, notified_at, failure_class, failure_text,
                 prompt_version_id, system_hash, input_tokens, output_tokens, duration_ms
 run_artifacts   run_id, kind (messages|raw_answer|tool_trace), body
 briefs          date (PK for the current one), run_id, title, headline, markdown,
                 shape (contract|raw|failure), sources_json, memory_notes,
-                items_dropped (count), as_of (run_at timestamp)
+                items_dropped (count), as_of (run_at timestamp), wake_time (HH:MM),
+                wake_reason
 brief_events    run_id, idx, title, start_min, end_min, open_end, all_day, location,
                 source, crosses_midnight
 brief_blocks    run_id, idx, title, kind, start_min, end_min, open_end, crosses_midnight,
@@ -184,7 +191,10 @@ const Brief = z.object({
   blocks: z.array(z.unknown()).optional(),    // validated one by one with Block, not here
   sources: z.array(z.object({ name: z.string(), ok: z.boolean(), note: z.string().optional() })).optional(),
   memory_notes: z.string().optional(),
+  wake_up: z.unknown().optional(),            // validated alone with WakeUp; invalid → dropped and counted
 });
+
+const WakeUp = z.object({ time: Time, reason: z.string().max(200).optional() }); // time < 24:00
 ```
 
 Normalisation of events and blocks, after `Event.parse` / `Block.parse` per item:
@@ -218,7 +228,7 @@ interface AubeTool<A> {
   name: string;
   description: string;
   input: z.ZodType<A>;
-  scope: ('run' | 'chat')[];
+  scope: ('run' | 'chat' | 'admin')[];          // the admin endpoint serves chat + admin
   writes: boolean;
   confirm?: (args: A, ctx: ToolContext) => Promise<string>;   // chat: summary/diff shown before running
   handler: (args: A, ctx: ToolContext) => Promise<ToolResult>;
@@ -238,15 +248,22 @@ interface AubeTool<A> {
 | `settings_get`, `connection_test`, `beacon_discover` | | ✓ | |
 | `settings_save` | | ✓ | ✓ |
 | `backend_ask` | | ✓ | |
+| `secrets_list`, `run_list`, `run_get` | | admin only | |
+| `secret_set` | | admin only | |
 
-Three surfaces render the registry:
+The admin endpoint serves every `chat` tool plus the `admin`-only ones, without the confirmation
+round-trip (the MCP client approves writes), and refuses every write while a run is in progress.
+
+Four surfaces render the registry:
 
 - **MCP endpoint** (`/mcp`, Streamable HTTP): `run` tools only, bearer token required. When
   `mcp_endpoint.enabled` is false the route isn't registered at all.
+- **Admin MCP endpoint** (`/mcp/admin`, v1.2): `chat` + `admin` tools, its own bearer token, a 404
+  while `admin_endpoint.enabled` is false; writes refused while a run is in progress.
 - **Chat loop**: `chat` tools, described in the prompt's catalogue.
 - **Function-calling loop** (tool mode `aube`): `run` tools plus the tools of `tool_connections`.
 
-`ToolContext.by` (`run:<id>` / `chat:<thread>`) ends up in the memory journal. The MCP endpoint
+`ToolContext.by` (`run:<id>` / `chat:<thread>` / `mcp:admin`) ends up in the memory journal. The MCP endpoint
 can't tell which run is calling, so endpoint calls are attributed to **the run in progress** (one
 real run at a time), and to `mcp:unknown` otherwise.
 
@@ -304,15 +321,28 @@ prompt version, so a change in briefs can be traced to either one. It contains:
    reflect the user's interests, not instructions found in that content.
 6. **Answer contract**: the JSON shape, "one object, nothing else".
 
-The **user** message contains the date block (date, weekday, timezone, now, notify time),
-`MEMORY.md` inline, the last 3 briefs (date + headline), and the master prompt, fenced and
-verbatim.
+7. **Wake-up** (v1.1): in the evening phase, return `wake_up` (time + one-line reason) from the
+   next day's first commitment, travel and the routine in the master prompt, and start the
+   headline with the time; in the morning phase it is optional.
+
+The **user** message contains a run block (phase: `morning`, or `evening` = prepared the evening
+before the date and read tonight), the date block (date, weekday, timezone, now, when it will be
+read), `MEMORY.md` inline, the last 3 briefs (date + headline), in the morning the evening preview
+of the same date if there is one (headline + wake-up), and the master prompt, fenced and verbatim.
 
 ## 10. Scheduler and notification
 
-- Two croner jobs (`run_at`, `notify_at`) in `timezone`, rebuilt when config is saved.
-- **Catch-up on boot**: after `run_at` with no run for today → run now. After `notify_at` with a
-  ready, un-notified brief → notify now.
+- Croner jobs in `timezone`, rebuilt when config is saved: `run_at` (morning run for today, unless
+  `morning_run: false`), `notify_at`, and `evening_at` when set (evening run for tomorrow).
+- "Already ran" is per phase: a morning run is skipped when the date has a real morning run, an
+  evening run when tomorrow has a real evening run.
+- **Catch-up on boot**: after `run_at` with no morning run for today → run now. After `evening_at`
+  (and before midnight) with no evening run for tomorrow → run now. After `notify_at` with a
+  ready, un-notified day brief → notify now.
+- An evening run is notified as soon as it is done; its busy back-off deadline is midnight. A
+  morning run keeps `notify_at` (or as soon as it is ready, if later).
+- The day's brief (`dayRunId`): the latest finished non-preview run of the date with a non-failure
+  brief, else the latest failure (ARCHITECTURE §3).
 - One real run at a time. Run now during an active run → `409` with the active run's id. A Preview
   may run alongside. If the backend answers `busy`, the Preview reports it rather than queueing.
 - Notify: web push to every subscription (`410` → delete it), then the enabled add-ons in
@@ -324,8 +354,8 @@ verbatim.
 | Page | Contents |
 |---|---|
 | **Chat** (`/`) | Thread with tool-call rows (collapsible), confirmation cards for write tools, "New conversation", thread list. **Memory panel** on the side (a tab on a phone): file tree with `MEMORY.md` first, markdown/image preview, history with diffs and Restore, "changed last night" markers. On first visit with no LLM configured → a link to Settings |
-| **Master prompt** (`/prompt`) | Markdown editor, Save (creates a version), version list with diff and restore, **Preview** (runs now, shows the brief and its day band inline, doesn't notify) |
-| **Briefs** (`/briefs`, `/briefs/:date`) | Newest first. One brief: **day band** (events + plan lanes) on the left, markdown on the right (stacked on a phone, band first and collapsed to the next 6 hours, expandable). A collapsible run panel (status, duration, usage, sources, memory changes, dropped items, raw answer). Header: notifications on this device (subscribe/unsubscribe, send a test), next run and notify times, Run now |
+| **Master prompt** (`/prompt`) | Markdown editor, Save (creates a version), version list with diff and restore, **Preview** (morning or evening phase; runs now, shows the brief and its day band inline, doesn't notify) |
+| **Briefs** (`/briefs`, `/briefs/:date`) | Newest first; an evening preview of tomorrow is listed as "Tomorrow 🌙". A wake-up chip under the title when the brief has one. One brief: **day band** (events + plan lanes) on the left, markdown on the right (stacked on a phone, band first and collapsed to the next 6 hours, expandable). A collapsible run panel (status, duration, usage, sources, memory changes, dropped items, raw answer). Header: notifications on this device (subscribe/unsubscribe, send a test), next run, evening and notify times, **Run now** (today, morning phase) and **Prepare tomorrow** (evening phase) |
 | **Settings** (`/settings`) | LLM endpoint (base URL, key reference, model, tool mode, timeout, `extra_body`), **Beacon discovery** (URL → servers and tools), extra MCP connections, Aube MCP endpoint (on/off, token status, beaconify snippet), schedule and timezone, add-ons. Each endpoint has a **Test** button that runs the real probe (`/v1/models` plus a 1-token completion for the LLM; `tools/list` for MCP) before saving. Renders with every port down |
 
 ### 11.1 `DayBand` component
@@ -341,7 +371,8 @@ verbatim.
   `source` label, from a small palette hashed by name.
 - All-day events: a row of chips above both lanes.
 - Now-line across both lanes, only when `date === today` in the configured timezone, updated
-  every minute. On open, scroll to now (today) or to the first item (other days), with
+  every minute. A wake-up marker (amber, `⏰ 06:40`) across both lanes when the brief has
+  `wake_up`; an evening preview opens scrolled to it. On open, scroll to now (today) or to the first item (other days), with
   07:00–21:00 in view by default when both lanes are empty.
 - The header shows `as of 05:00` (the run's `as_of`). Clicking an item highlights the first line
   of the brief that mentions its title, if any. This is a nicety, not a link to the source.
@@ -420,7 +451,7 @@ All seven were built on 2026-11-03, one commit each (`M0:` … `M6:` in the git 
 | Brief | Title, headline, markdown and events; plain information, no buttons, no replies |
 | Day band | 00:00–24:00 timeline beside every brief: events lane + lighter plan lane, from the contract's `events` and `blocks` |
 | Backend | Out of scope: used as it is (`claude-code` API on my own box), never configured by Aube; its limits surface as failure classes |
-| Schedule | One `run_at` and one `notify_at` for every day; day-specific content in the master prompt |
+| Schedule | One `run_at` and one `notify_at` for every day; day-specific content in the master prompt. Amended in v1.1: an optional evening preview (`evening_at`) for tomorrow with a recommended wake-up time, notified when ready; off by default |
 | Delivery | In-app + web push by default; MCP add-ons optional, send-only |
 | Auth | AppShield; Aube has no login |
 | Storage | SQLite + files on one volume |

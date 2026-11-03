@@ -36,10 +36,12 @@ export interface DayBandProps {
   blocks: NormBlock[]
   asOf: string
   isToday: boolean
+  /** The recommended wake-up time, in minutes, when the brief has one (v1.1). */
+  wakeMin?: number | null
   onSelect?: (title: string) => void
 }
 
-export function DayBand({ date, timezone, events, blocks, asOf, isToday, onSelect }: DayBandProps) {
+export function DayBand({ date, timezone, events, blocks, asOf, isToday, wakeMin = null, onSelect }: DayBandProps) {
   const scroller = useRef<HTMLDivElement>(null)
   const [nowMin, setNowMin] = useState<number | null>(null)
   const [expanded, setExpanded] = useState(false)
@@ -63,10 +65,10 @@ export function DayBand({ date, timezone, events, blocks, asOf, isToday, onSelec
 
   useEffect(() => {
     const el = scroller.current
-    if (el) el.scrollTop = initialScrollMin([...timed, ...blocks], nowMin) * PX_PER_MIN
+    if (el) el.scrollTop = initialScrollMin([...timed, ...blocks], nowMin, wakeMin) * PX_PER_MIN
     // Only on open / date change, not every minute.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, timed.length, blocks.length, isToday])
+  }, [date, timed.length, blocks.length, isToday, wakeMin])
 
   const asOfLocal = (() => {
     const p = localParts(new Date(asOf), timezone)
@@ -158,6 +160,11 @@ export function DayBand({ date, timezone, events, blocks, asOf, isToday, onSelec
               )
             })}
           </div>
+          {wakeMin !== null && (
+            <div className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-dashed border-amber-500" style={{ top: wakeMin * PX_PER_MIN }}>
+              <span className="absolute -top-2.5 left-0 rounded bg-amber-500 px-1 text-[10px] font-semibold text-white">⏰ {fromMinutes(wakeMin)}</span>
+            </div>
+          )}
           {nowMin !== null && (
             <div className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-red-500" style={{ top: nowMin * PX_PER_MIN }}>
               <span className="absolute -top-2.5 left-0 rounded bg-red-500 px-1 text-[10px] text-white">now</span>
@@ -166,7 +173,7 @@ export function DayBand({ date, timezone, events, blocks, asOf, isToday, onSelec
         </div>
       </div>
       {popover && <div className="border-t border-ink-200 p-2 text-xs dark:border-ink-800">{popover}</div>}
-      {timed.length === 0 && blocks.length === 0 && <div className="p-2 text-xs text-ink-500">Nothing reported for the band.</div>}
+      {timed.length === 0 && blocks.length === 0 && wakeMin === null && <div className="p-2 text-xs text-ink-500">Nothing reported for the band.</div>}
     </div>
   )
 }

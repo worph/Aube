@@ -27,12 +27,16 @@ export function registerBriefRoutes(app: FastifyInstance, ctx: AppContext, svc: 
     return { run: toSummary(run), brief: briefView(ctx, run.id) ?? null, artifacts: listArtifacts(ctx, run.id) }
   })
 
-  const StartBody = z.object({ kind: z.enum(['manual', 'preview']).default('manual'), date: z.string().regex(DATE).optional() })
+  const StartBody = z.object({
+    kind: z.enum(['manual', 'preview']).default('manual'),
+    phase: z.enum(['morning', 'evening']).default('morning'),
+    date: z.string().regex(DATE).optional(),
+  })
   app.post('/api/v1/runs', async (req, reply) => {
     const body = StartBody.safeParse(req.body ?? {})
     if (!body.success) return reply.code(400).send({ error: body.error.issues[0]?.message })
     try {
-      const runId = svc.runner.start(body.data.kind, body.data.date)
+      const runId = svc.runner.start(body.data.kind, body.data.date, body.data.phase)
       return { runId }
     } catch (err) {
       if (err instanceof RunBusy) return reply.code(409).send({ error: err.message, activeRunId: err.activeRunId })

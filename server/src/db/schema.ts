@@ -11,6 +11,7 @@ export const runs = sqliteTable(
     id: integer('id').primaryKey({ autoIncrement: true }),
     date: text('date').notNull(),
     kind: text('kind', { enum: ['scheduled', 'manual', 'preview'] }).notNull(),
+    phase: text('phase', { enum: ['morning', 'evening'] }).notNull().default('morning'),
     status: text('status', { enum: ['PENDING', 'RUNNING', 'READY', 'NOTIFIED', 'FAILED'] }).notNull(),
     toolMode: text('tool_mode').notNull(),
     model: text('model').notNull().default(''),
@@ -56,6 +57,8 @@ export const briefs = sqliteTable(
     memoryNotes: text('memory_notes'),
     itemsDropped: integer('items_dropped').notNull().default(0),
     asOf: text('as_of').notNull(),
+    wakeTime: text('wake_time'),
+    wakeReason: text('wake_reason'),
   },
   (t) => [index('briefs_date').on(t.date)],
 )
@@ -113,7 +116,7 @@ export const promptVersions = sqliteTable('prompt_versions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   body: text('body').notNull(),
   savedAt: text('saved_at').notNull().default(now),
-  savedBy: text('saved_by', { enum: ['ui', 'chat', 'boot'] }).notNull(),
+  savedBy: text('saved_by', { enum: ['ui', 'chat', 'mcp', 'boot'] }).notNull(),
   note: text('note'),
 })
 

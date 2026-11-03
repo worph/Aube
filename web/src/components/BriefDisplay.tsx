@@ -9,7 +9,8 @@ export function BriefDisplay({ brief, timezone, today }: { brief: BriefView; tim
   const md = useRef<HTMLDivElement>(null)
   const [flash, setFlash] = useState<Element | null>(null)
   // An empty band (a failure brief, or a day with nothing timed) only takes space.
-  const hasBand = brief.events.length + brief.blocks.length > 0
+  const hasBand = brief.events.length + brief.blocks.length > 0 || !!brief.wakeUp
+  const asOf = new Date(brief.asOf).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
 
   const highlight = (title: string) => {
     const root = md.current
@@ -28,7 +29,14 @@ export function BriefDisplay({ brief, timezone, today }: { brief: BriefView; tim
       <div>
         <h2 className="text-xl font-semibold">{brief.title}</h2>
         <p className="text-sm text-ink-500">{brief.headline}</p>
+        {brief.phase === 'evening' && <p className="mt-0.5 text-xs text-ink-500">🌙 Evening preview, prepared {asOf}. The morning run replaces it.</p>}
       </div>
+      {brief.wakeUp && (
+        <div className="flex flex-wrap items-baseline gap-x-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+          <span className="font-semibold">⏰ Wake up at {brief.wakeUp.time}</span>
+          {brief.wakeUp.reason && <span className="text-amber-800 dark:text-amber-200">— {brief.wakeUp.reason}</span>}
+        </div>
+      )}
       {brief.shape !== 'contract' && (
         <div className={`rounded-md p-2 text-sm ${brief.shape === 'failure' ? 'bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200' : 'bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200'}`}>
           {brief.shape === 'failure' ? 'This is a failure brief: the run could not produce one.' : 'Shown as the backend wrote it: the answer was not in the expected shape.'}
@@ -37,7 +45,7 @@ export function BriefDisplay({ brief, timezone, today }: { brief: BriefView; tim
       <div className={`grid gap-4 ${hasBand ? 'md:grid-cols-[minmax(260px,340px)_1fr]' : ''}`}>
         {hasBand && (
           <div className="md:sticky md:top-16 md:self-start">
-            <DayBand date={brief.date} timezone={timezone} events={brief.events} blocks={brief.blocks} asOf={brief.asOf} isToday={brief.date === today} onSelect={highlight} />
+            <DayBand date={brief.date} timezone={timezone} events={brief.events} blocks={brief.blocks} asOf={brief.asOf} isToday={brief.date === today} wakeMin={brief.wakeUp?.timeMin ?? null} onSelect={highlight} />
             {brief.itemsDropped > 0 && <p className="mt-1 text-xs text-ink-500">{brief.itemsDropped} item(s) could not be placed.</p>}
           </div>
         )}

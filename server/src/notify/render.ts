@@ -72,3 +72,12 @@ export function fillArgs(args: unknown, vars: Record<string, string>): unknown {
   if (args && typeof args === 'object') return Object.fromEntries(Object.entries(args).map(([k, v]) => [k, fillArgs(v, vars)]))
   return args
 }
+
+/**
+ * The headline a notification carries: with the recommended wake-up time in front when the brief has
+ * one and the headline does not already say it (the evening preview's whole point, v1.1).
+ */
+export function notifyHeadline(b: { headline: string; wakeTime?: string | null }): string {
+  if (!b.wakeTime || b.headline.includes(b.wakeTime)) return b.headline
+  return `⏰ ${b.wakeTime} · ${b.headline}`
+}

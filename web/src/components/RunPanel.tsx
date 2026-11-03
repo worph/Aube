@@ -12,7 +12,7 @@ export function RunPanel({ brief }: { brief: BriefView }) {
   return (
     <details className="rounded-lg border border-ink-200 bg-white p-3 text-sm dark:border-ink-800 dark:bg-ink-900" onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
       <summary className="cursor-pointer select-none">
-        Run #{r.id} · {r.kind} · {r.status}
+        Run #{r.id} · {r.kind}{r.phase === 'evening' ? ' · evening' : ''} · {r.status}
         {r.failureClass ? ` [${r.failureClass}]` : ''}
         {r.durationMs !== null ? ` · ${(r.durationMs / 1000).toFixed(1)} s` : ''}
         {r.inputTokens ? ` · ${r.inputTokens}→${r.outputTokens} tokens` : ''}

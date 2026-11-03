@@ -47,9 +47,10 @@ export function layoutLane<T extends Span>(items: T[]): Placed<T>[] {
   return out
 }
 
-/** Where to scroll on open: now (today), else the first item, else 07:00. */
-export function initialScrollMin(items: Span[], nowMin: number | null): number {
+/** Where to scroll on open: now (today), else the first item or the wake-up time, else 07:00. */
+export function initialScrollMin(items: Span[], nowMin: number | null, wakeMin: number | null = null): number {
   if (nowMin !== null) return Math.max(0, nowMin - 60)
-  const first = items.reduce((m, i) => Math.min(m, i.startMin), Infinity)
+  // Another day (an evening preview of tomorrow): open on the wake-up time when it comes first.
+  const first = items.reduce((m, i) => Math.min(m, i.startMin), wakeMin ?? Infinity)
   return Number.isFinite(first) ? Math.max(0, first - 30) : 7 * 60
 }

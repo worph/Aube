@@ -1,4 +1,4 @@
-import { atLocal, localDate, weekdayName, parseAnswer, type ParsedAnswer, type RunKind } from '@aube/shared'
+import { addDays, atLocal, localDate, weekdayName, parseAnswer, type ParsedAnswer, type RunKind, type RunPhase } from '@aube/shared'
 import { AUTH_RE, complete, LlmError, type ChatMessage, type Completion, type FailureClass, type LlmEndpoint } from '../llm/client.js'
 import { extractJson } from '../llm/extract.js'
 import { buildRunMessages } from './messages.js'
@@ -57,15 +57,19 @@ export class Runner {
     return [...this.running]
   }
 
-  /** Start a run in the background and return its id. Throws RunBusy for a second real run. */
-  start(kind: RunKind, date?: string): number {
+  /**
+   * Start a run in the background and return its id. Throws RunBusy for a second real run.
+   * The morning phase defaults to today; the evening phase (v1.1) to tomorrow.
+   */
+  start(kind: RunKind, date?: string, phase: RunPhase = 'morning'): number {
     const cfg = this.ctx.config.get()
-    const target = date ?? localDate(this.ctx.now(), cfg.timezone)
+    const today = localDate(this.ctx.now(), cfg.timezone)
+    const target = date ?? (phase === 'evening' ? addDays(today, 1) : today)
     if (kind !== 'preview' && this.active !== null) throw new RunBusy(this.active)
-    const run = createRun(this.ctx, { date: target, kind, toolMode: cfg.llm.tool_mode, model: cfg.llm.model })
+    const run = createRun(this.ctx, { date: target, kind, phase, toolMode: cfg.llm.tool_mode, model: cfg.llm.model })
     if (kind !== 'preview') this.active = run.id
     this.running.add(run.id)
-    const done = this.execute(run.id, kind, target)
+    const done = this.execute(run.id, kind, target, phase)
       .catch((err) => this.ctx.log(`run #${run.id} crashed: ${(err as Error).stack ?? err}`))
       .finally(() => {
         if (this.active === run.id) this.active = null
@@ -76,16 +80,18 @@ export class Runner {
     return run.id
   }
 
-  private async execute(runId: number, kind: RunKind, date: string): Promise<void> {
+  private async execute(runId: number, kind: RunKind, date: string, phase: RunPhase): Promise<void> {
     const ctx = this.ctx
     const cfg = ctx.config.get()
     const started = ctx.now()
     const ep: LlmEndpoint = { baseUrl: cfg.llm.base_url, apiKey: cfg.llm.api_key, model: cfg.llm.model, timeoutS: cfg.llm.timeout_s, extraBody: cfg.llm.extra_body }
-    const deadline = kind === 'preview' ? started : atLocal(date, cfg.notify_at, cfg.timezone)
+    // A busy backend is waited out until the brief is due: notify_at in the morning; midnight for
+    // an evening preview (its day starts then). A Preview never waits.
+    const deadline = kind === 'preview' ? started : phase === 'evening' ? atLocal(date, '00:00', cfg.timezone) : atLocal(date, cfg.notify_at, cfg.timezone)
 
     let built
     try {
-      built = buildRunMessages(ctx, date)
+      built = buildRunMessages(ctx, date, phase)
     } catch (err) {
       return this.fail(runId, date, started, 'error', `could not assemble the prompt: ${(err as Error).message}`)
     }
@@ -148,7 +154,7 @@ export class Runner {
         started,
         'raw',
         {
-          title: `☀️ ${weekdayName(date)} ${date}`,
+          title: `${phase === 'evening' ? '🌙' : '☀️'} ${weekdayName(date)} ${date}`,
           headline: firstLine(completion.content),
           markdown: `> ⚠️ This brief is not in the expected shape (${parsed.errors.slice(0, 3).join('; ')}). Shown as the backend wrote it.\n\n${completion.content}`,
           sources: [],
@@ -185,10 +191,12 @@ export class Runner {
 
   private fail(runId: number, date: string, started: Date, cls: FailureClass, text: string, usage?: { tokensIn: number; tokensOut: number }) {
     const now = this.ctx.now()
+    const evening = getRun(this.ctx, runId)?.phase === 'evening'
+    const what = evening ? 'evening preview' : 'brief'
     const why: Record<FailureClass, string> = {
       auth: 'the LLM backend refused the login',
       unreachable: 'the LLM backend could not be reached',
-      busy: 'the LLM backend stayed busy until the notification time',
+      busy: evening ? 'the LLM backend stayed busy until midnight' : 'the LLM backend stayed busy until the notification time',
       error: 'the LLM backend failed twice',
       'parse-failed': 'the answer could not be used',
     }
@@ -196,9 +204,9 @@ export class Runner {
       shape: 'failure',
       asOf: started.toISOString(),
       answer: {
-        title: `⚠️ ${weekdayName(date)} ${date}: no brief`,
-        headline: `No brief today: ${why[cls]}.`,
-        markdown: `## No brief today\n\nThe brief could not be prepared because ${why[cls]}.\n\n**Class:** \`${cls}\`\n\n**Detail:**\n\n\`\`\`\n${text.slice(0, 2000)}\n\`\`\`\n\nCheck Settings → LLM and press **Test**, then **Run now** on the Briefs page.`,
+        title: `⚠️ ${weekdayName(date)} ${date}: no ${what}`,
+        headline: evening ? `No evening preview: ${why[cls]}.` : `No brief today: ${why[cls]}.`,
+        markdown: `## No ${what}${evening ? '' : ' today'}\n\nThe ${what} could not be prepared because ${why[cls]}.\n\n**Class:** \`${cls}\`\n\n**Detail:**\n\n\`\`\`\n${text.slice(0, 2000)}\n\`\`\`\n\nCheck Settings → LLM and press **Test**, then **Run now** on the Briefs page.`,
         sources: [],
         events: [],
         blocks: [],

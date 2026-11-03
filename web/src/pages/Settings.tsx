@@ -78,6 +78,7 @@ export function SettingsPage({ extra }: { extra?: ReactNode }) {
       <ScheduleSection draft={draft} set={set} />
       <ConnectionsSection connections={draft.connections} onChange={(c) => set('connections', c)} />
       <EndpointSection value={draft.mcp_endpoint} onChange={(v) => set('mcp_endpoint', v)} />
+      <AdminEndpointSection value={draft.admin_endpoint} onChange={(v) => set('admin_endpoint', v)} />
       <AddonsSection addons={draft.addons} connections={Object.keys(draft.connections)} saved={q.data!.config} onChange={(a) => set('addons', a)} />
       {extra}
     </div>
@@ -196,15 +197,31 @@ function ScheduleSection({ draft, set }: { draft: AubeConfig; set: <K extends ke
         <Field label="Timezone">
           <Input value={draft.timezone} onChange={(e) => set('timezone', e.target.value)} />
         </Field>
-        <Field label="Prepare at" hint="When the brief is prepared">
-          <Input type="time" value={draft.run_at} onChange={(e) => set('run_at', e.target.value)} />
+        <Field label="Prepare at" hint={draft.morning_run ? 'The morning run, for today' : 'Morning run off'}>
+          <Input type="time" value={draft.run_at} disabled={!draft.morning_run} onChange={(e) => set('run_at', e.target.value)} />
         </Field>
-        <Field label="Notify at" hint="Same time every day">
+        <Field label="Notify at" hint={draft.morning_run ? 'Same time every day' : 'Only for a brief not notified yet'}>
           <Input type="time" value={draft.notify_at} onChange={(e) => set('notify_at', e.target.value)} />
         </Field>
         <Field label="Public URL" hint="For links in notifications. Empty: the address the box gives the app">
           <Input value={draft.public_url ?? ''} onChange={(e) => set('public_url', e.target.value || undefined)} placeholder="https://aube.example.nsl.sh" />
         </Field>
+      </div>
+      <div className="mt-4 grid gap-3 border-t border-ink-200 pt-4 sm:grid-cols-4 dark:border-ink-800">
+        <Field label="Evening preview at" hint="Tomorrow's brief the evening before, with a wake-up time, notified when ready. Empty: off">
+          <div className="flex gap-2">
+            <Input type="time" value={draft.evening_at} onChange={(e) => set('evening_at', e.target.value)} />
+            {draft.evening_at && draft.morning_run && (
+              <Button variant="ghost" onClick={() => set('evening_at', '')}>
+                Off
+              </Button>
+            )}
+          </div>
+        </Field>
+        <label className="flex items-center gap-2 self-center text-sm sm:col-span-3">
+          <input type="checkbox" checked={draft.morning_run} disabled={!draft.evening_at && draft.morning_run} onChange={(e) => set('morning_run', e.target.checked)} />
+          Morning run: refresh the brief in the morning{draft.evening_at ? '' : ' (can be turned off once the evening preview is on)'}
+        </label>
       </div>
     </Card>
   )
@@ -373,6 +390,32 @@ function EndpointSection({ value, onChange }: { value: AubeConfig['mcp_endpoint'
     BEACONIFY_NAME: aube
     BEACONIFY_UPSTREAM_URL: http://aube:8080/mcp
     BEACONIFY_AUTH: "Bearer \${AUBE_MCP_TOKEN}"`}</pre>
+    </Card>
+  )
+}
+
+function AdminEndpointSection({ value, onChange }: { value: AubeConfig['admin_endpoint']; onChange: (v: AubeConfig['admin_endpoint']) => void }) {
+  return (
+    <Card title="Admin MCP endpoint">
+      <p className="mb-3 text-sm text-ink-500">
+        Serves everything the chat can do — master prompt, settings, secrets, tests, previews, memory — at <code>/mcp/admin</code>, so another assistant
+        (Claude through Beacon) can administer Aube. Announced to Beacon as <code>aube-admin</code> by its own beaconify sidecar. Writes are refused while a
+        run is in progress, so the nightly backend cannot rewrite its own prompt or settings.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={value.enabled} onChange={(e) => onChange({ ...value, enabled: e.target.checked })} />
+          Enabled
+        </label>
+        <Field label="Bearer token" hint="Generated on boot into data/secrets.env">
+          <Input value={value.token} onChange={(e) => onChange({ ...value, token: e.target.value })} placeholder="${AUBE_ADMIN_MCP_TOKEN}" />
+        </Field>
+      </div>
+      <pre className="mt-3 overflow-auto rounded bg-ink-100 p-2 text-xs dark:bg-ink-950">{`beaconify:
+  environment:
+    BEACONIFY_NAME: aube-admin
+    BEACONIFY_UPSTREAM_URL: http://aube-backend:8080/mcp/admin
+    BEACONIFY_AUTH: "Bearer \${AUBE_ADMIN_MCP_TOKEN}"`}</pre>
     </Card>
   )
 }

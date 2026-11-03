@@ -6,6 +6,8 @@ export const CONFIG_TEMPLATE = `# Aube configuration. Edited by the Settings pag
 timezone: Europe/Paris
 run_at: "05:00"        # when the brief is prepared
 notify_at: "07:00"     # when the push goes out (or as soon as the brief is ready, if later)
+morning_run: true      # false: no morning run; the evening preview is the day's brief
+evening_at: ""         # e.g. "21:00": prepare tomorrow's brief the evening before, with a wake-up time
 # public_url: https://aube-<you>.nsl.sh   # deep links in push and add-ons
 
 llm:
@@ -27,6 +29,10 @@ connections: {}
 mcp_endpoint:
   enabled: false                # Aube's own MCP endpoint (memory + briefs) at /mcp
   token: \${AUBE_MCP_TOKEN}
+
+admin_endpoint:
+  enabled: false                # admin MCP endpoint at /mcp/admin: prompt, settings, previews (for another assistant)
+  token: \${AUBE_ADMIN_MCP_TOKEN}
 
 memory:
   max_file_kb: 256

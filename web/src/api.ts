@@ -132,7 +132,8 @@ export interface PromptResponse {
 export const getBriefs = () => api<BriefsResponse>('/api/v1/briefs')
 export const getBrief = (date: string) => api<BriefView>(`/api/v1/briefs/${date}`)
 export const getRun = (id: number) => api<RunDetail>(`/api/v1/runs/${id}`)
-export const startRun = (kind: 'manual' | 'preview', date?: string) => api<{ runId: number }>('/api/v1/runs', { method: 'POST', json: { kind, ...(date ? { date } : {}) } })
+export const startRun = (kind: 'manual' | 'preview', date?: string, phase: 'morning' | 'evening' = 'morning') =>
+  api<{ runId: number }>('/api/v1/runs', { method: 'POST', json: { kind, phase, ...(date ? { date } : {}) } })
 export const getPrompt = () => api<PromptResponse>('/api/v1/prompt')
 export const getPromptVersion = (id: number) => api<PromptVersionMeta & { body: string }>(`/api/v1/prompt/versions/${id}`)
 export const savePrompt = (body: string, note?: string) => api<{ versionId: number }>('/api/v1/prompt', { method: 'PUT', json: { body, ...(note ? { note } : {}) } })

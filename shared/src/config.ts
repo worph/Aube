@@ -43,6 +43,8 @@ export const ConfigSchema = z.object({
   timezone: z.string().default('Europe/Paris'),
   run_at: HHMM.default('05:00'),
   notify_at: HHMM.default('07:00'),
+  morning_run: z.boolean().default(true),
+  evening_at: z.union([HHMM, z.literal('')]).default(''),
   public_url: z.string().optional(),
   llm: z
     .object({
@@ -63,6 +65,13 @@ export const ConfigSchema = z.object({
       token: z.string().default(''),
     })
     .default({}),
+  /** The admin MCP endpoint at /mcp/admin (v1.2): everything the chat can do, for another assistant. */
+  admin_endpoint: z
+    .object({
+      enabled: z.boolean().default(false),
+      token: z.string().default('${AUBE_ADMIN_MCP_TOKEN}'),
+    })
+    .default({}),
   memory: z
     .object({
       max_file_kb: z.number().int().positive().default(256),
@@ -72,6 +81,9 @@ export const ConfigSchema = z.object({
     .default({}),
   retention: z.object({ artifact_days: z.number().int().positive().default(30) }).default({}),
   addons: z.array(AddonSchema).default([]),
+}).refine((c) => c.morning_run || c.evening_at !== '', {
+  message: 'with the morning run off, set the evening preview time (otherwise nothing ever runs)',
+  path: ['morning_run'],
 })
 export type AubeConfig = z.infer<typeof ConfigSchema>
 
@@ -82,6 +94,7 @@ export type AubeConfig = z.infer<typeof ConfigSchema>
 export const SECRET_PATHS: string[][] = [
   ['llm', 'api_key'],
   ['mcp_endpoint', 'token'],
+  ['admin_endpoint', 'token'],
   ['connections', '*', 'headers', '*'],
   ['connections', '*', 'env', '*'],
 ]

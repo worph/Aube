@@ -47,6 +47,21 @@ describe('answer contract', () => {
     expect(parseAnswer({ ...base, headline: 'x'.repeat(141) }).ok).toBe(false)
   })
 
+  it('keeps a valid wake-up time and drops a bad one without failing the brief', () => {
+    const ok = parseAnswer({ ...base, wake_up: { time: '06:40', reason: 'Review at 10:00' } })
+    expect(ok.ok && ok.answer.wakeUp).toEqual({ time: '06:40', timeMin: 400, reason: 'Review at 10:00' })
+    for (const bad of [{ time: '6:40' }, { time: '24:00' }, { reason: 'no time' }, '06:40']) {
+      const r = parseAnswer({ ...base, wake_up: bad })
+      expect(r.ok).toBe(true)
+      if (r.ok) {
+        expect(r.answer.wakeUp).toBeUndefined()
+        expect(r.answer.dropped).toBe(1)
+      }
+    }
+    const none = parseAnswer(base)
+    expect(none.ok && none.answer.wakeUp).toBeUndefined()
+  })
+
   it('treats missing lists as empty', () => {
     const r = parseAnswer(base)
     expect(r.ok && r.answer.events).toEqual([])

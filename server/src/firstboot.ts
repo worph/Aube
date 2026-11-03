@@ -25,10 +25,12 @@ export function firstBoot(paths: Paths, log: (msg: string) => void = console.log
   write(`${paths.memory}/MEMORY.md`, MEMORY_INDEX_TEMPLATE, 'memory/MEMORY.md')
 
   loadSecrets(paths.secrets)
-  if (!process.env.AUBE_MCP_TOKEN) {
+  // Not only on first boot: an install that predates the admin endpoint gets its token on upgrade.
+  for (const name of ['AUBE_MCP_TOKEN', 'AUBE_ADMIN_MCP_TOKEN']) {
+    if (process.env[name]) continue
     const token = randomBytes(32).toString('hex')
-    appendFileSync(paths.secrets, `AUBE_MCP_TOKEN=${token}\n`, { mode: 0o600 })
-    process.env.AUBE_MCP_TOKEN = token
-    log(`first boot: generated AUBE_MCP_TOKEN into ${paths.secrets} (give it to the beaconify sidecar)`)
+    appendFileSync(paths.secrets, `${name}=${token}\n`, { mode: 0o600 })
+    process.env[name] = token
+    log(`generated ${name} into ${paths.secrets} (give it to its beaconify sidecar)`)
   }
 }

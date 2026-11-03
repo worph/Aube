@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import type { Addon, AubeConfig } from '@aube/shared'
 import { schema } from '../db/index.js'
 import { callTool, McpError } from '../mcp/client.js'
-import { fillArgs, LIMITS, render, split, escapeTelegram, toPlain } from './render.js'
+import { fillArgs, LIMITS, notifyHeadline, render, split, escapeTelegram, toPlain } from './render.js'
 import type { AppContext } from '../context.js'
 import type { Channel } from './index.js'
 
@@ -53,7 +53,7 @@ export function addonChannels(ctx: AppContext): Channel[] {
       send: async (runId: number) => {
         const brief = ctx.db.select().from(schema.briefs).where(eq(schema.briefs.runId, runId)).get()
         if (!brief) return 'skip' as const
-        await sendAddon(ctx, addon, brief)
+        await sendAddon(ctx, addon, { ...brief, headline: notifyHeadline(brief) })
         return undefined
       },
     }))

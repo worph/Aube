@@ -14,6 +14,7 @@ export async function chatStatus(ctx: AppContext, svc: Services): Promise<string
     `- LLM endpoint: ${raw.llm.base_url || 'NOT CONFIGURED — nothing can run until it is set and tested'}${raw.llm.model ? `, model ${raw.llm.model}` : ''}, tool mode ${raw.llm.tool_mode}`,
     `- Connections: ${Object.entries(raw.connections).map(([n, c]) => `${n} (${c.transport}${c.url ? ` ${c.url}` : ''}, via ${c.via})`).join('; ') || 'none'}`,
     `- Aube MCP endpoint: ${raw.mcp_endpoint.enabled ? 'enabled' : 'disabled (memory is read-only for the nightly run)'}`,
+    `- Admin MCP endpoint (/mcp/admin, for another assistant): ${raw.admin_endpoint.enabled ? 'enabled' : 'disabled'}`,
     `- Schedule: prepared at ${raw.run_at}, notified at ${raw.notify_at} (${raw.timezone}); next run ${sched.nextRun ?? '?'}`,
     `- Master prompt: ${currentPrompt(ctx).body.length} characters, version #${currentPrompt(ctx).version.id}`,
     `- Memory: ${files.length} file(s): ${files.slice(0, 30).map((f) => f.path).join(', ')}`,

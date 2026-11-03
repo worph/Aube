@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { briefView, dayRunId, getRun } from '../src/run/store.js'
+import { briefView, dayRunId, getRun, hasPhaseRun } from '../src/run/store.js'
 import { makeServices } from '../src/services.js'
 import { fakeLlm, validAnswer, type Step } from './fake-llm.js'
 import { makeContext } from './helpers.js'
@@ -176,6 +176,6 @@ describe('scheduler without an LLM', () => {
     setClock(new Date('2026-11-04T08:00:00Z'))
     svc.scheduler.catchUp()
     expect(svc.runner.activeRunId()).toBeNull()
-    expect(svc.scheduler.hasRealRun('2026-11-04')).toBe(false)
+    expect(hasPhaseRun(ctx, '2026-11-04', 'morning')).toBe(false)
   })
 })

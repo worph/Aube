@@ -43,6 +43,20 @@ run_at ──▶ assemble prompt ──▶ backend ──▶ validate ──▶ 
 Monday, fish on Friday, a lighter brief on Sunday) goes in the master prompt, which receives the
 weekday.
 
+**The evening preview (optional, v1.1).** With `evening_at` set (e.g. 21:00), Aube also runs the
+evening before, for **tomorrow's** date. That run is a *phase* of the same run, not a second kind
+of brief: the same master prompt and contract, with the run told it is the evening phase, so it
+recommends a **wake-up time** (`wake_up`) from tomorrow's first commitment, travel and the
+routine the master prompt describes. It is notified as soon as it is ready, so the alarm can be set
+before bed. The morning run still happens (unless `morning_run: false`), sees the evening preview
+as context, and replaces it as the day's brief. Off by default: a fresh install notifies once a
+day.
+
+```
+D-1 evening_at ──▶ evening run for D ──▶ brief for D + wake_up ──▶ push now ("⏰ 06:40 · …")
+D   run_at     ──▶ morning run for D (sees the evening preview) ──▶ replaces it ──▶ notify_at
+```
+
 **What the backend receives** (a `system` message and a `user` message):
 
 ```
@@ -51,8 +65,10 @@ weekday.
             memory holds context, never status.
             Aube tools: aube__memory_*, aube__brief_*.
             The answer contract.
-[user]      date: 2026-11-04, Wednesday, Europe/Paris, now 05:00
+[user]      run: morning (or evening: prepared the evening before)
+            date: 2026-11-04, Wednesday, Europe/Paris, now 05:00
             MEMORY.md (inline)
+            the evening preview of this date, if any (morning only)
             last 3 briefs: date + headline
             the master prompt, verbatim
 ```
@@ -77,6 +93,7 @@ weekday.
     { "start": "18:30", "end": "19:20", "title": "Legs (wger PPL, day 3)", "kind": "sport" }
   ],
   "sources": [{ "name": "gmail", "ok": true }, { "name": "uptime", "ok": false, "note": "timeout" }],
+  "wake_up": { "time": "06:40", "reason": "Sprint review at 10:00, deep work first; 7h30 of sleep" },
   "memory_notes": "optional: what was written to memory this run, in one line"
 }
 ```
@@ -86,7 +103,7 @@ weekday.
 1. `title`, `headline` (≤ 140 chars) and `brief_markdown` are required. If one fails, Aube retries
    **once** with the validation error appended. If that fails too, Aube keeps the backend's raw
    text as the brief, with a generic title and a banner saying it isn't in the expected shape.
-2. `events` and `blocks` are validated **per item**. An invalid item is dropped and counted ("2
+2. `events`, `blocks` and `wake_up` are validated **per item**. An invalid item is dropped and counted ("2
    items could not be placed"). It never triggers a retry or loses the brief. If either list is
    missing, its lane shows "nothing reported".
 
@@ -105,9 +122,13 @@ PENDING → RUNNING → READY → NOTIFIED
               └──▶ FAILED  (a failure brief is stored and notified)
 ```
 
-**Run now** and **Preview** start the same run by hand. A Preview is stored but neither notifies
-nor replaces the day's brief. A second real run for the same date replaces the day's brief. The
-earlier one stays in the run log.
+**Run now** and **Preview** start the same run by hand (morning or evening phase). A Preview is
+stored but neither notifies nor replaces the day's brief.
+
+**The day's brief** is the latest finished real run of that date whose brief is not a failure
+brief; only when every run of the date failed is the latest failure brief the day's brief. A
+second good run (the morning after an evening preview, a Run now) replaces it; a failed one does
+not hide a good one, and stays in the run log.
 
 ## 4. The day band
 
@@ -145,6 +166,8 @@ the gaps are. The band is a vertical timeline from **00:00 to 24:00**, shown bes
 - **Items crossing midnight** are clipped to the band, with a marker showing they continue.
 - **A now-line** crosses both lanes when the brief being viewed is today's. The band scrolls to
   it on open, and otherwise to the first item.
+- **A wake-up marker** (`⏰ 06:40`, amber) crosses both lanes when the brief has a `wake_up`. On an
+  evening preview the band opens on it.
 - **Plan kinds** (`focus`, `task`, `meeting-prep`, `sport`, `meal`, `travel`, `break`, `other`)
   only pick a tint and an icon. Any other value is shown as `other`.
 - Times are local, in the configured timezone, as `HH:MM` for the brief's date.
@@ -280,12 +303,26 @@ because undoing must not depend on a working LLM.
 - **If the backend can't reach Aube's endpoint**, the run still works: `MEMORY.md` is inline, and
   the run log notes that memory was read-only for that run.
 
-### 6.4 The run toolset and the chat toolset
+### 6.4 The run toolset, the chat toolset and the admin toolset
 
 The nightly run gets **memory (everything) and briefs**. It can't change settings or the master
-prompt. The chat gets everything. Aube's MCP endpoint serves only the run toolset, so anyone who
-can see Aube on Beacon can at most touch memory (which is journaled and restorable) and read
-briefs.
+prompt. The chat gets everything. Aube's MCP endpoint (`/mcp`, announced as `aube`) serves only
+the run toolset, so anyone who can see `aube` on Beacon can at most touch memory (which is
+journaled and restorable) and read briefs.
+
+**The admin endpoint (v1.2)** is a second MCP endpoint, `/mcp/admin`, announced as `aube-admin` by
+its own beaconify sidecar, with its own token and its own switch (off by default). It serves the
+**admin toolset**: every chat tool, plus a few that stand in for what the pages do without a model
+(`secrets_list`, `secret_set`, `run_list`, `run_get`). It lets another assistant (Claude through
+Beacon) do what the administrator chat does: write the master prompt, change settings, preview.
+
+- **No confirmation card.** The calling client approves a write itself (every write is announced
+  with `readOnlyHint: false`); the chat's confirmation round-trip has no equivalent over MCP.
+- **Writes are refused while any run is in progress (previews included).** The nightly backend
+  usually sees the same Beacon. A run, perhaps steered by a mail it read, must not be able to
+  rewrite its own master prompt, point `llm.base_url` somewhere else (which would hand over the
+  LLM bearer), or set secrets. Reads stay available.
+- Prompt versions saved this way are marked `mcp`; memory changes are journaled as `mcp:admin`.
 
 ## 7. The administrator chat
 
@@ -319,6 +356,10 @@ Threads are append-only. "New conversation" starts a new thread and keeps the ol
 
 - **In-app is the default and is always on.** Web push (VAPID, the installed PWA) sends `title` +
   `headline` at `notify_at`, with a deep link to that day's brief.
+- **The evening preview is notified when it is ready**, with the wake-up time in front of the
+  headline (`⏰ 06:40 · …`). At `notify_at` the day's brief is notified only if it has not been yet:
+  the morning brief replaces a preview and is sent; a preview that is still the day's brief is not
+  sent twice.
 - **Add-ons** are MCP tool calls configured in Settings, e.g.
   `{ tool: "telegram-mcp__send_message", args: { text: "{{headline}}\n{{url}}" } }`. An add-on
   sends the headline + link, or the full markdown rendered for the channel. Add-ons only send;
@@ -333,7 +374,7 @@ Threads are append-only. "New conversation" starts a new thread and keeps the ol
    `run_at`, and the source tools hold the truth.
 2. **Aube doesn't restrict the backend.** Tools connected to the backend are used as connected.
    Aube's only limit is on its *own* tools: the run toolset can't change settings or the master
-   prompt.
+   prompt, and the admin endpoint refuses writes while a run is in progress.
 3. **A brief is always stored and notified**, even if it is a raw-text brief or a failure brief.
    Bad `events` or `blocks` cost items on the band, never the brief.
 4. **Memory stays in its folder, and nothing in it is ever lost.** Every write and delete goes
@@ -348,7 +389,7 @@ Threads are append-only. "New conversation" starts a new thread and keeps the ol
 8. **The app works with every port down.** Settings, the Briefs page and the memory panel render
    when the backend, Beacon and push are all unreachable.
 9. **Access control belongs to AppShield.** Aube has no login. The MCP endpoint is reached only by
-   the beaconify sidecar, with a bearer token.
+   its beaconify sidecar, with a bearer token (one per endpoint).
 
 ## 10. What lives outside, and where
 

@@ -1,4 +1,5 @@
 import { publicUrl } from '../config/public-url.js'
+import { notifyHeadline } from './render.js'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { eq } from 'drizzle-orm'
 import webpush from 'web-push'
@@ -98,7 +99,7 @@ export class PushService {
         const run = getRun(this.ctx, runId)
         const brief = this.ctx.db.select().from(schema.briefs).where(eq(schema.briefs.runId, runId)).get()
         if (!run || !brief) return 'skip'
-        const r = await this.send({ title: brief.title, body: brief.headline, url: `/briefs/${brief.date}` })
+        const r = await this.send({ title: brief.title, body: notifyHeadline(brief), url: `/briefs/${brief.date}` })
         if (r.sent === 0 && r.failed.length) throw new Error(r.failed.join('; '))
         return undefined
       },

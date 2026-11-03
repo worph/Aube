@@ -12,7 +12,7 @@ export const briefTools = [
     input: { limit: z.number().int().min(1).max(90).optional() },
     scope: ['run', 'chat'],
     writes: false,
-    handler: async ({ limit }, t) => json(listBriefs(t.ctx, limit ?? 14).map((b) => ({ date: b.date, headline: b.headline, shape: b.shape }))),
+    handler: async ({ limit }, t) => json(listBriefs(t.ctx, limit ?? 14).map((b) => ({ date: b.date, headline: b.headline, shape: b.shape, phase: b.phase, ...(b.wakeTime ? { wake_up: b.wakeTime } : {}) }))),
   }),
   defineTool({
     name: 'brief_get',
@@ -29,7 +29,9 @@ export const briefTools = [
         ...b.events.map((e) => (e.allDay ? `- event (all day): ${e.title}` : `- event ${fromMinutes(e.startMin!)}–${fromMinutes(e.endMin!)}: ${e.title}`)),
         ...b.blocks.map((k) => `- plan ${fromMinutes(k.startMin)}–${fromMinutes(k.endMin)} [${k.kind}]: ${k.title}`),
       ]
-      return text(`# ${b.title}\n${b.headline}\n(as of ${b.asOf})\n\n${b.markdown}\n\n## Day band\n${band.join('\n') || '(empty)'}`)
+      const wake = b.wakeUp ? `\nrecommended wake-up: ${b.wakeUp.time}${b.wakeUp.reason ? ` (${b.wakeUp.reason})` : ''}` : ''
+      const phase = b.phase === 'evening' ? ', evening preview' : ''
+      return text(`# ${b.title}\n${b.headline}\n(as of ${b.asOf}${phase})${wake}\n\n${b.markdown}\n\n## Day band\n${band.join('\n') || '(empty)'}`)
     },
   }),
 ]

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { getPrompt, getPromptVersion, getRun, isRunning, restorePrompt, savePrompt, startRun } from '../api'
 import { BriefDisplay } from '../components/BriefDisplay'
 import { Diff } from '../components/Diff'
-import { Button, Card, Input, Status, Textarea } from '../components/ui'
+import { Button, Card, Input, Select, Status, Textarea } from '../components/ui'
 
 /** What goes into the brief, in prose. Every save is a version; Preview runs it now without notifying. */
 export function MasterPromptPage() {
@@ -14,6 +14,7 @@ export function MasterPromptPage() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [viewing, setViewing] = useState<number | null>(null)
   const [previewId, setPreviewId] = useState<number | null>(null)
+  const [previewPhase, setPreviewPhase] = useState<'morning' | 'evening'>('morning')
 
   useEffect(() => {
     if (q.data && body === null) setBody(q.data.body)
@@ -47,7 +48,7 @@ export function MasterPromptPage() {
   const runPreview = async () => {
     try {
       if (dirty) await save()
-      const { runId } = await startRun('preview')
+      const { runId } = await startRun('preview', undefined, previewPhase)
       setPreviewId(runId)
     } catch (err) {
       setMsg({ ok: false, text: (err as Error).message })
@@ -81,6 +82,16 @@ export function MasterPromptPage() {
             <Button onClick={save} disabled={!dirty}>
               Save
             </Button>
+            <Select
+              aria-label="Which run to preview"
+              className="w-auto"
+              value={previewPhase}
+              onChange={(e) => setPreviewPhase(e.target.value as 'morning' | 'evening')}
+              title="Morning: today's brief. Evening: tomorrow's preview with the wake-up time."
+            >
+              <option value="morning">☀️ Morning</option>
+              <option value="evening">🌙 Evening</option>
+            </Select>
             <Button variant="primary" onClick={runPreview} disabled={previewId !== null && isRunning(preview.data?.run.status)}>
               {previewId !== null && (isRunning(preview.data?.run.status) || !preview.data) ? 'Preview running…' : 'Preview'}
             </Button>

@@ -5,18 +5,19 @@ import type { AppContext } from '../context.js'
 import type { Services } from '../services.js'
 
 /**
- * Aube's toolset, defined once (ARCHITECTURE §6.3, invariant 5). Three surfaces render it — the MCP
- * endpoint (`run` scope), the administrator chat (`chat` scope) and the function-calling loop of
- * tool mode `aube` (`run` scope). The interface follows Newsdesk's `admin/registry.ts`, with
+ * Aube's toolset, defined once (ARCHITECTURE §6.3, invariant 5). Four surfaces render it — the MCP
+ * endpoint (`run` scope), the administrator chat (`chat` scope), the admin MCP endpoint (`admin`
+ * scope: every `chat` tool plus the few marked `admin`) and the function-calling loop of tool mode
+ * `aube` (`run` scope). The interface follows Newsdesk's `admin/registry.ts`, with
  * Touchstone's `writes` flag and an explicit scope instead of `chatOnly`.
  */
 
-export type Scope = 'run' | 'chat'
+export type Scope = 'run' | 'chat' | 'admin'
 
 export interface ToolContext {
   ctx: AppContext
   svc: Services
-  /** Who is calling, for the memory journal: `run:<id>`, `chat:<thread>`, `mcp:unknown`. */
+  /** Who is calling, for the memory journal: `run:<id>`, `chat:<thread>`, `mcp:unknown`, `mcp:admin`. */
   by: string
   runId: number | null
 }
@@ -54,7 +55,9 @@ export function registerTools(tools: AubeTool[]): void {
   }
 }
 
+/** `admin` is a superset: whatever the chat may do, plus tools that make sense only without a UI. */
 export function toolsFor(scope: Scope): AubeTool[] {
+  if (scope === 'admin') return registry.filter((t) => t.scope.includes('chat') || t.scope.includes('admin'))
   return registry.filter((t) => t.scope.includes(scope))
 }
 

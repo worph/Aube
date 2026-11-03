@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { CONTRACT_EXAMPLE, localHHMM, weekdayName, type AubeConfig } from '@aube/shared'
+import { CONTRACT_EXAMPLE, localHHMM, weekdayName, type AubeConfig, type RunPhase } from '@aube/shared'
 import { fillPrompt, loadPrompt } from '../prompts/load.js'
 import { currentPrompt } from '../prompt/store.js'
-import { previousHeadlines } from './store.js'
+import { eveningPreview, previousHeadlines } from './store.js'
 import type { ChatMessage } from '../llm/client.js'
 import type { AppContext } from '../context.js'
 
@@ -40,7 +40,7 @@ export function aubeToolsNote(cfg: AubeConfig): { text: string; readonly: boolea
   }
 }
 
-export function buildRunMessages(ctx: AppContext, date: string): RunMessages {
+export function buildRunMessages(ctx: AppContext, date: string, phase: RunPhase = 'morning'): RunMessages {
   const cfg = ctx.config.get()
   const tools = aubeToolsNote(cfg)
   const system = fillPrompt(loadPrompt('run-system'), {
@@ -51,14 +51,35 @@ export function buildRunMessages(ctx: AppContext, date: string): RunMessages {
   const memoryIndexFile = path.join(ctx.paths.memory, 'MEMORY.md')
   const memoryIndex = existsSync(memoryIndexFile) ? readFileSync(memoryIndexFile, 'utf8').trim() : '(empty)'
   const previous = previousHeadlines(ctx, date)
+  const preview = phase === 'morning' ? eveningPreview(ctx, date) : undefined
+
+  const run =
+    phase === 'evening'
+      ? [
+          '# Run',
+          `phase: evening — prepared the evening before ${date}. The user reads it tonight and sets an alarm from it.`,
+          'Return `wake_up` (required in this phase) and start the headline with the wake-up time.',
+        ]
+      : ['# Run', 'phase: morning — the brief of the day itself.']
 
   const user = [
+    ...run,
+    '',
     '# Date',
     `date: ${date} (${weekdayName(date)})`,
     `timezone: ${cfg.timezone}`,
-    `now: ${localHHMM(ctx.now(), cfg.timezone)}`,
-    `the brief will be read at: ${cfg.notify_at}`,
+    `now: ${localHHMM(ctx.now(), cfg.timezone)}${phase === 'evening' ? ' (the evening before)' : ''}`,
+    `the brief will be read at: ${phase === 'evening' ? 'tonight, as soon as it is ready' : cfg.notify_at}`,
     '',
+    ...(preview
+      ? [
+          "# Last evening's preview of this date",
+          `headline: ${preview.headline}`,
+          `recommended wake-up: ${preview.wakeTime ? `${preview.wakeTime}${preview.wakeReason ? ` (${preview.wakeReason})` : ''}` : '(none)'}`,
+          'The user may have set an alarm from it. Mention it if the plan changed overnight.',
+          '',
+        ]
+      : []),
     '# Memory index (MEMORY.md)',
     memoryIndex,
     '',
