@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, ne } from 'drizzle-orm'
+import { and, desc, eq, inArray, lt, ne } from 'drizzle-orm'
 import type { BriefListItem, BriefView, NormBlock, NormEvent, ParsedAnswer, RunKind, RunStatus, RunSummary } from '@aube/shared'
 import { schema } from '../db/index.js'
 import type { AppContext } from '../context.js'
@@ -196,4 +196,10 @@ export function previousHeadlines(ctx: AppContext, date: string, n = 3): Array<{
     .filter((b) => b.date < date && b.shape !== 'failure')
     .slice(0, n)
     .map((b) => ({ date: b.date, headline: b.headline }))
+}
+
+/** Retention (IMPLEMENTATION §4): artifacts (prompts, raw answers, traces) after `days`; briefs stay. */
+export function pruneArtifacts(ctx: AppContext, days: number): number {
+  const cutoff = new Date(ctx.now().getTime() - days * 86_400_000).toISOString()
+  return ctx.db.delete(schema.runArtifacts).where(lt(schema.runArtifacts.at, cutoff)).run().changes
 }

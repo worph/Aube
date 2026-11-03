@@ -5,14 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <!-- use-credentials: behind AppShield the manifest fetch must carry the session (see Newsdesk index.html). -->
-    <link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials" />
-    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-    <link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <link rel="manifest" href="/pwa/manifest.webmanifest" crossorigin="use-credentials" />
+    <link rel="icon" href="/pwa/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/pwa/icon-192.png" type="image/png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png" sizes="180x180" />
     <meta name="apple-mobile-web-app-title" content="Aube" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="theme-color" content="#f9fafb" media="(prefers-color-scheme: light)" />
+    <!-- /pwa/* is the only path AppShield serves without a login (ALLOWED_PATHS): manifest and icons, no data. -->
     <meta name="theme-color" content="#040608" media="(prefers-color-scheme: dark)" />
     <title>Aube</title>
   </head>

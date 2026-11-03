@@ -4,6 +4,9 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { App } from './App'
 import './index.css'
+// Imported for its side effect: the install listener must exist before Chrome fires beforeinstallprompt.
+import './install'
+import { registerServiceWorker } from './push'
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false, retry: false } } })
 
@@ -16,3 +19,5 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>,
 )
+
+window.addEventListener('load', () => void registerServiceWorker())

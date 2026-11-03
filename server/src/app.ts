@@ -11,6 +11,7 @@ import type { Services } from './services.js'
 import { registerMcpEndpoint } from './mcp/endpoint.js'
 import { registerChatRoutes } from './routes/chat.js'
 import { registerMemoryRoutes } from './routes/memory.js'
+import { registerPushRoutes } from './routes/push.js'
 
 /**
  * The HTTP surface. No login: Aube sits behind AppShield (ARCHITECTURE invariant 9) and never
@@ -34,6 +35,7 @@ export async function buildApp(ctx: AppContext, svc: Services, opts: { serveWeb?
   registerMcpEndpoint(app, ctx, svc)
   registerChatRoutes(app, ctx, svc)
   registerMemoryRoutes(app, ctx, svc)
+  registerPushRoutes(app, svc)
 
   if (opts.serveWeb) {
     const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public')

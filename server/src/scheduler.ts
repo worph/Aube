@@ -2,7 +2,7 @@ import { Cron } from 'croner'
 import { and, eq, ne } from 'drizzle-orm'
 import { atLocal, localDate, type ScheduleInfo } from '@aube/shared'
 import { schema } from './db/index.js'
-import { getRun, toSummary } from './run/store.js'
+import { getRun, pruneArtifacts, toSummary } from './run/store.js'
 import { RunBusy, type Runner } from './run/runner.js'
 import type { Notifier } from './notify/index.js'
 import type { AppContext } from './context.js'
@@ -25,6 +25,12 @@ export class Scheduler {
     this.rebuild()
     this.ctx.config.onChange(() => this.rebuild())
     this.catchUp()
+    this.prune()
+  }
+
+  prune(): void {
+    const n = pruneArtifacts(this.ctx, this.ctx.config.get().retention.artifact_days)
+    if (n) this.ctx.log(`retention: removed ${n} run artifact(s)`)
   }
 
   stop(): void {
@@ -40,8 +46,9 @@ export class Scheduler {
       return `${m} ${h} * * *`
     }
     this.jobs = [
-      new Cron(cron(cfg.run_at), { timezone: cfg.timezone, name: 'run', protect: true }, () => this.fireRun()),
-      new Cron(cron(cfg.notify_at), { timezone: cfg.timezone, name: 'notify', protect: true }, () => this.fireNotify()),
+      new Cron(cron(cfg.run_at), { timezone: cfg.timezone, protect: true }, () => this.fireRun()),
+      new Cron(cron(cfg.notify_at), { timezone: cfg.timezone, protect: true }, () => this.fireNotify()),
+      new Cron('30 3 * * *', { timezone: cfg.timezone, protect: true }, () => this.prune()),
     ]
   }
 

@@ -9,7 +9,8 @@ import type { AppContext } from '../context.js'
  */
 export interface Channel {
   name: string
-  send: (runId: number) => Promise<void>
+  /** Resolve 'skip' when there was nothing to send on this channel (not recorded). */
+  send: (runId: number) => Promise<void | 'skip'>
 }
 
 export class Notifier {
@@ -40,7 +41,7 @@ export class Notifier {
     this.lastSend = Promise.allSettled(
       this.channels.map((c) =>
         c.send(runId).then(
-          () => this.record(runId, c.name, null),
+          (r) => r !== 'skip' && this.record(runId, c.name, null),
           (err: unknown) => {
             this.record(runId, c.name, err instanceof Error ? err.message : String(err))
             this.ctx.log(`notify #${runId} via ${c.name} failed: ${err instanceof Error ? err.message : err}`)
