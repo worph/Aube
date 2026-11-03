@@ -36,6 +36,8 @@ export class RunBusy extends Error {
 export class Runner {
   /** The one real (non-preview) run allowed at a time. */
   private active: number | null = null
+  /** Every run in progress, previews included (attribution of MCP calls). */
+  private running = new Set<number>()
   private readonly sleep: (ms: number) => Promise<void>
   /** Resolves when the run finishes; for tests and the chat's run_preview. */
   readonly finished = new Map<number, Promise<void>>()
@@ -51,6 +53,10 @@ export class Runner {
     return this.active
   }
 
+  inProgress(): number[] {
+    return [...this.running]
+  }
+
   /** Start a run in the background and return its id. Throws RunBusy for a second real run. */
   start(kind: RunKind, date?: string): number {
     const cfg = this.ctx.config.get()
@@ -58,10 +64,12 @@ export class Runner {
     if (kind !== 'preview' && this.active !== null) throw new RunBusy(this.active)
     const run = createRun(this.ctx, { date: target, kind, toolMode: cfg.llm.tool_mode, model: cfg.llm.model })
     if (kind !== 'preview') this.active = run.id
+    this.running.add(run.id)
     const done = this.execute(run.id, kind, target)
       .catch((err) => this.ctx.log(`run #${run.id} crashed: ${(err as Error).stack ?? err}`))
       .finally(() => {
         if (this.active === run.id) this.active = null
+        this.running.delete(run.id)
         if (kind !== 'preview') this.opts.onDone?.(run.id)
       })
     this.finished.set(run.id, done)
