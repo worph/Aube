@@ -131,3 +131,60 @@ export const savePrompt = (body: string, note?: string) => api<{ versionId: numb
 export const restorePrompt = (id: number) => api<{ versionId: number }>(`/api/v1/prompt/versions/${id}/restore`, { method: 'POST' })
 
 export const isRunning = (s?: string) => s === 'PENDING' || s === 'RUNNING'
+
+export interface ChatMessage {
+  id: number
+  threadId: number
+  role: 'user' | 'assistant' | 'tool'
+  body: string
+  tool: string | null
+  args: unknown
+  result: string | null
+  ok: boolean | null
+  confirmWith: string | null
+  confirmedAt: string | null
+  at: string
+}
+export interface ChatState {
+  threadId: number | null
+  messages: ChatMessage[]
+  running: boolean
+  inference: { available: true } | { available: false; reason: string }
+  threads: Array<{ id: number; createdAt: string; lastAt: string }>
+}
+export const getChat = (thread?: number) => api<ChatState>(`/api/v1/chat${thread ? `?thread=${thread}` : ''}`)
+export const newThread = () => api<{ threadId: number }>('/api/v1/chat/new', { method: 'POST' })
+export const confirmProposal = (messageId: number, decision: 'confirm' | 'cancel') => api<{ message: ChatMessage }>('/api/v1/chat/confirm', { method: 'POST', json: { messageId, decision } })
+
+export interface MemoryFile {
+  path: string
+  kind: 'md' | 'image'
+  size: number
+  modifiedAt: string
+  inIndex: boolean
+}
+export interface MemoryState {
+  files: MemoryFile[]
+  lastRun: { runId: number; date: string; touched: string[] } | null
+  totalBytes: number
+  maxTotalBytes: number
+}
+export interface JournalEntry {
+  id: number
+  path: string
+  action: 'write' | 'delete' | 'restore'
+  by: string
+  runId: number | null
+  at: string
+  encoding: 'utf8' | 'base64'
+  beforeSize: number | null
+  afterSize: number | null
+}
+export type MemoryContent = { kind: 'md'; path: string; text: string } | { kind: 'image'; path: string; data: string; mimeType: string }
+export const getMemory = () => api<MemoryState>('/api/v1/memory')
+export const getMemoryFile = (path: string) => api<MemoryContent>(`/api/v1/memory/file?path=${encodeURIComponent(path)}`)
+export const getMemoryHistory = (path?: string) => api<{ entries: JournalEntry[] }>(`/api/v1/memory/history${path ? `?path=${encodeURIComponent(path)}` : ''}`)
+export const getMemoryVersion = (id: number, side: 'before' | 'after') =>
+  api<{ path: string; kind: 'md' | 'image'; content: string | null; encoding: string }>(`/api/v1/memory/versions/${id}?side=${side}`)
+export const restoreMemory = (journalId: number, side?: 'before' | 'after') => api<{ path: string }>('/api/v1/memory/restore', { method: 'POST', json: { journalId, ...(side ? { side } : {}) } })
+export const memoryImageUrl = (path: string) => `/api/v1/memory/raw?path=${encodeURIComponent(path)}`
