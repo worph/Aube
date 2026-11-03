@@ -62,7 +62,7 @@ function transportFor(conn: Connection): Transport {
 }
 
 export async function withClient<T>(conn: Connection, fn: (client: Client) => Promise<T>): Promise<T> {
-  const client = new Client({ name: 'aube', version: '0.1.0' })
+  const client = new Client({ name: 'aube', version: '1.0.0' })
   try {
     await client.connect(transportFor(conn))
     return await fn(client)

@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto'
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import type { Paths } from './paths.js'
 import { CONFIG_TEMPLATE, MASTER_PROMPT_TEMPLATE, MEMORY_INDEX_TEMPLATE } from './config/template.js'
+import { loadSecrets } from './config/secrets.js'
 
 /**
  * A fresh volume gets the files Aube needs to boot and be configured from the browser
@@ -29,13 +30,5 @@ export function firstBoot(paths: Paths, log: (msg: string) => void = console.log
     appendFileSync(paths.secrets, `AUBE_MCP_TOKEN=${token}\n`, { mode: 0o600 })
     process.env.AUBE_MCP_TOKEN = token
     log(`first boot: generated AUBE_MCP_TOKEN into ${paths.secrets} (give it to the beaconify sidecar)`)
-  }
-}
-
-export function loadSecrets(file: string): void {
-  if (!existsSync(file)) return
-  for (const line of readFileSync(file, 'utf8').split('\n')) {
-    const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/.exec(line)
-    if (m && !process.env[m[1]!]) process.env[m[1]!] = m[2]!
   }
 }

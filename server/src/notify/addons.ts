@@ -1,3 +1,4 @@
+import { publicUrl } from '../config/public-url.js'
 import { eq } from 'drizzle-orm'
 import type { Addon, AubeConfig } from '@aube/shared'
 import { schema } from '../db/index.js'
@@ -18,7 +19,7 @@ export interface BriefText {
 }
 
 export function messagesFor(addon: Addon, b: BriefText, cfg: AubeConfig): string[] {
-  const url = cfg.public_url ? `${cfg.public_url.replace(/\/+$/, '')}/briefs/${b.date}` : ''
+  const url = publicUrl(cfg) ? `${publicUrl(cfg)}/briefs/${b.date}` : ''
   const fmt = addon.format
   if (addon.mode === 'headline') {
     const lines = fmt === 'telegram-markdown' ? [`*${escapeTelegram(b.title)}*`, escapeTelegram(b.headline), ...(url ? [escapeTelegram(url)] : [])] : [b.title, b.headline, ...(url ? [url] : [])]
@@ -33,7 +34,7 @@ export async function sendAddon(ctx: AppContext, addon: Addon, b: BriefText): Pr
   const cfg = ctx.config.get()
   const conn = cfg.connections[addon.connection]
   if (!conn) throw new McpError(`add-on "${addon.name}": no connection named "${addon.connection}"`, false)
-  const url = cfg.public_url ? `${cfg.public_url.replace(/\/+$/, '')}/briefs/${b.date}` : ''
+  const url = publicUrl(cfg) ? `${publicUrl(cfg)}/briefs/${b.date}` : ''
   const msgs = messagesFor(addon, b, cfg)
   for (const content of msgs) {
     const args = fillArgs(addon.args, { content, headline: b.headline, title: b.title, url, date: b.date }) as Record<string, unknown>

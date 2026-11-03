@@ -34,3 +34,15 @@ export function missingVars(node: unknown, env: NodeJS.ProcessEnv = process.env)
   walk(node)
   return [...missing]
 }
+
+/** Every variable name a tree references, in first-seen order. */
+export function referencedVars(node: unknown): string[] {
+  const seen = new Set<string>()
+  const walk = (n: unknown) => {
+    if (typeof n === 'string') for (const m of n.matchAll(REF)) seen.add(m[1]!)
+    else if (Array.isArray(n)) n.forEach(walk)
+    else if (n && typeof n === 'object') Object.values(n).forEach(walk)
+  }
+  walk(node)
+  return [...seen]
+}

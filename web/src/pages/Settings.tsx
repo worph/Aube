@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, type ReactNode } from 'react'
 import type { Addon, AubeConfig, Connection } from '@aube/shared'
-import { ApiError, getConfig, saveConfig, testAddon, testConnection, testLlm, type ConnectionProbe, type LlmProbe } from '../api'
+import { ApiError, getConfig, getSecrets, putSecret, saveConfig, testAddon, testConnection, testLlm, type ConnectionProbe, type LlmProbe, type SecretStatus } from '../api'
 import { Button, Card, Field, Input, Select, Status, Textarea } from '../components/ui'
 
 /**
@@ -32,6 +32,7 @@ export function SettingsPage({ extra }: { extra?: ReactNode }) {
     try {
       const r = await saveConfig(draft)
       qc.setQueryData(['config'], r)
+      void qc.invalidateQueries({ queryKey: ['secrets'] })
       setDraft(r.config)
       setMessage({ ok: true, text: 'Saved. Applies from the next run.' })
     } catch (err) {
@@ -68,11 +69,12 @@ export function SettingsPage({ extra }: { extra?: ReactNode }) {
 
       {q.data!.missingVars.length > 0 && (
         <Status ok={false}>
-          Environment variables referenced but not set: {q.data!.missingVars.map((v) => `\${${v}}`).join(', ')}
+          Not set yet: {q.data!.missingVars.map((v) => `\${${v}}`).join(', ')}. Enter the values under Secrets.
         </Status>
       )}
 
       <LlmSection llm={draft.llm} connections={Object.keys(draft.connections)} onChange={(llm) => set('llm', llm)} />
+      <SecretsSection onChange={() => void qc.invalidateQueries({ queryKey: ['config'] })} />
       <ScheduleSection draft={draft} set={set} />
       <ConnectionsSection connections={draft.connections} onChange={(c) => set('connections', c)} />
       <EndpointSection value={draft.mcp_endpoint} onChange={(v) => set('mcp_endpoint', v)} />
@@ -113,7 +115,7 @@ function LlmSection({ llm, connections, onChange }: { llm: AubeConfig['llm']; co
         <Field label="Base URL" hint="Any OpenAI-compatible endpoint, e.g. http://claude-code:9091/v1">
           <Input value={llm.base_url} onChange={(e) => up({ base_url: e.target.value })} placeholder="http://host:port/v1" />
         </Field>
-        <Field label="API key" hint="A ${VAR} reference, resolved from the environment">
+        <Field label="API key" hint="A ${VAR} reference; set its value under Secrets below">
           <Input value={llm.api_key} onChange={(e) => up({ api_key: e.target.value })} placeholder="${LLM_API_KEY}" />
         </Field>
         <Field label="Model">
@@ -200,7 +202,7 @@ function ScheduleSection({ draft, set }: { draft: AubeConfig; set: <K extends ke
         <Field label="Notify at" hint="Same time every day">
           <Input type="time" value={draft.notify_at} onChange={(e) => set('notify_at', e.target.value)} />
         </Field>
-        <Field label="Public URL" hint="For links in notifications">
+        <Field label="Public URL" hint="For links in notifications. Empty: the address the box gives the app">
           <Input value={draft.public_url ?? ''} onChange={(e) => set('public_url', e.target.value || undefined)} placeholder="https://aube.example.nsl.sh" />
         </Field>
       </div>
@@ -481,6 +483,84 @@ function AddonRow({ addon, connections, savedEqual, onChange, onRemove }: { addo
         </div>
       </div>
       {result && <Status ok={result.ok}>{result.text}</Status>}
+    </div>
+  )
+}
+
+/**
+ * The values behind the ${VAR} references. Write-only: the page learns where a value comes from,
+ * never the value. One set in the container environment wins and is not editable here.
+ */
+function SecretsSection({ onChange }: { onChange: () => void }) {
+  const qc = useQueryClient()
+  const q = useQuery({ queryKey: ['secrets'], queryFn: getSecrets })
+  const rows = (q.data?.secrets ?? []).filter((s) => s.name !== 'AUBE_MCP_TOKEN')
+  return (
+    <Card title="Secrets">
+      <p className="mb-3 text-sm text-ink-500">
+        Values for the <code>{'${VAR}'}</code> references above, stored in <code>data/secrets.env</code> and never shown again. A variable set in the container environment always wins.
+      </p>
+      {q.isError && <Status ok={false}>{(q.error as Error).message}</Status>}
+      {rows.length === 0 && q.data && <p className="text-sm text-ink-500">No references to fill.</p>}
+      <div className="space-y-2">
+        {rows.map((s) => (
+          <SecretRow
+            key={s.name}
+            s={s}
+            onSaved={() => {
+              void qc.invalidateQueries({ queryKey: ['secrets'] })
+              onChange()
+            }}
+          />
+        ))}
+      </div>
+    </Card>
+  )
+}
+
+function SecretRow({ s, onSaved }: { s: SecretStatus; onSaved: () => void }) {
+  const [value, setValue] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const save = async (v: string) => {
+    setBusy(true)
+    setErr(null)
+    try {
+      await putSecret(s.name, v)
+      setValue('')
+      onSaved()
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const state = s.source === 'env' ? 'set in the container environment' : s.source === 'file' ? 'set' : 'not set'
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <code className="w-44 shrink-0 text-sm">{s.name}</code>
+      <span className={`w-56 shrink-0 text-xs ${s.source ? 'text-emerald-600' : 'text-amber-600'}`}>{state}</span>
+      {s.source !== 'env' && (
+        <>
+          <Input
+            type="password"
+            autoComplete="off"
+            className="min-w-0 flex-1"
+            value={value}
+            placeholder={s.source ? 'new value' : 'value'}
+            onChange={(e) => setValue(e.target.value)}
+          />
+          <Button onClick={() => save(value)} disabled={busy || !value.trim()}>
+            Save
+          </Button>
+          {s.source === 'file' && (
+            <Button variant="ghost" onClick={() => save('')} disabled={busy}>
+              Clear
+            </Button>
+          )}
+        </>
+      )}
+      {err && <Status ok={false}>{err}</Status>}
     </div>
   )
 }

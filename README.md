@@ -8,7 +8,7 @@ brief is waiting in the app and a push notification tells you so.
 
 > *Aube* is French for "dawn": the brief is ready at first light.
 
-> Status: **v0.1.0, milestones M0–M6 implemented** (not yet deployed). The model is in
+> Status: **v1.0.0**, milestones M0–M6, image `ghcr.io/worph/aube:1.0.0` (amd64 + arm64). The model is in
 > [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md), the build notes in
 > [`docs/IMPLEMENTATION.md`](./docs/IMPLEMENTATION.md), and the commands in [`CLAUDE.md`](./CLAUDE.md).
 
@@ -93,21 +93,31 @@ model with no tools of its own, Aube runs the tool loop itself. See
 
 ## Installing
 
-Aube runs inside a Yundera box, like Newsdesk and Touchstone: one container with a data volume,
-behind AppShield, plus a beaconify sidecar that announces Aube's memory tools to Beacon. This repo
-is a one-app store (`Apps/Aube/docker-compose.yml` with an `x-casaos` block): add
-`https://github.com/worph/Aube/archive/refs/heads/main.zip` as a store source. HTTPS (the box's
-`nsl.sh` subdomain) is required for the PWA and web push. The image is not published yet: build it
-with `docker build -f deploy/Dockerfile -t ghcr.io/worph/aube:0.1.0 .`.
+Aube runs inside a Yundera box like any store app: the Aube container with its data folder, an
+AppShield gate as the only public surface, and a beaconify sidecar that announces Aube's memory
+tools to the box's Beacon. The listing is `Apps/Aube/` (also usable on its own: this repo is a
+one-app store). HTTPS (the box's `nsl.sh` subdomain) is required for the PWA and web push.
 
-Then, in the app:
+The LLM is **another app**, not part of Aube's stack. On a Yundera box that is the Claude Code
+app with its OpenAI-compatible API turned on (`OPENAI_API_ENABLED=true`), reachable from Aube on
+the shared network; its bearer is the Claude Code app's password. Aube only needs a base URL.
 
-1. **Settings → LLM**: the base URL of your OpenAI-compatible endpoint, `${LLM_API_KEY}` as the
-   key (set `LLM_API_KEY` in the container environment), a model, **Test**.
-2. **Settings → Aube MCP endpoint**: enable it so the nightly LLM can write memory (the backend
+Then, in Aube:
+
+1. **Settings → LLM**: the base URL of the OpenAI-compatible endpoint, a model, **Test**.
+2. **Settings → Secrets**: the endpoint's bearer as `LLM_API_KEY`. Write-only: it is stored in
+   `data/secrets.env` and never shown again. (A value in the container environment wins.)
+3. **Settings → Aube MCP endpoint**: enable it so the nightly LLM can write memory (the backend
    must reach `aube__memory_*` through its own Beacon connection).
-3. **Master prompt**: write what you want, **Preview**.
-4. **Briefs**: turn on notifications on your phone (install the app first on iOS).
+4. **Master prompt**: write what you want, **Preview**.
+5. **Briefs**: turn on notifications on your phone (install the app first on iOS).
+
+### Releasing
+
+Bump the version in the four `package.json` files, `Apps/Aube/docker-compose.yml` (image and
+`x-compose-app.version`) and this README, commit, then tag `vX.Y.Z` and push both. The GitHub
+workflow (`.github/workflows/docker-publish.yml`) gates on typecheck and tests, then pushes
+`ghcr.io/worph/aube:X.Y.Z` for amd64 and arm64; `main` builds `latest`.
 
 ## Developing
 

@@ -29,7 +29,7 @@ export function registerMcpEndpoint(app: FastifyInstance, ctx: AppContext, svc: 
 
   app.post('/mcp', { preHandler: guard }, async (req, reply) => {
     const server = new McpServer(
-      { name: 'aube', version: '0.1.0' },
+      { name: 'aube', version: '1.0.0' },
       {
         instructions:
           "Aube's memory and past briefs. Memory is a folder of markdown files and images holding context no other tool knows; MEMORY.md is its index. Never store the status of a task, event or mail in memory: the tool that owns it is the truth.",

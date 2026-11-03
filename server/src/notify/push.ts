@@ -1,3 +1,4 @@
+import { publicUrl } from '../config/public-url.js'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { eq } from 'drizzle-orm'
 import webpush from 'web-push'
@@ -62,7 +63,7 @@ export class PushService {
   async send(payload: PushPayload, only?: string): Promise<{ sent: number; pruned: number; failed: string[] }> {
     const { publicKey, privateKey } = this.vapid()
     const cfg = this.ctx.config.get()
-    const subject = cfg.public_url?.startsWith('https://') ? cfg.public_url : 'mailto:aube@localhost'
+    const subject = publicUrl(cfg).startsWith('https://') ? publicUrl(cfg) : 'mailto:aube@localhost'
     const subs = this.ctx.db.select().from(schema.pushSubs).all().filter((s) => !only || s.endpoint === only)
     let sent = 0
     let pruned = 0

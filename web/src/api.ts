@@ -91,6 +91,14 @@ export interface ConnectionProbe {
   catalogue?: { kind: 'beacon' | 'plain'; servers: Array<{ name: string; tools: DiscoveredTool[] }> }
 }
 
+export interface SecretStatus {
+  name: string
+  /** env: the container environment (wins); file: set from Settings into data/secrets.env; null: unset. */
+  source: 'env' | 'file' | null
+}
+export const getSecrets = () => api<{ secrets: SecretStatus[] }>('/api/v1/secrets')
+export const putSecret = (name: string, value: string) => api<SecretStatus>(`/api/v1/secrets/${encodeURIComponent(name)}`, { method: 'PUT', json: { value } })
+
 export const getConfig = () => api<ConfigResponse>('/api/v1/config')
 export const saveConfig = (config: AubeConfig) => api<ConfigResponse>('/api/v1/config', { method: 'PUT', json: config })
 export const testLlm = (llm: AubeConfig['llm']) => api<LlmProbe>('/api/v1/config/test', { method: 'POST', json: { kind: 'llm', llm } })

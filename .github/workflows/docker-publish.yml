@@ -1,0 +1,95 @@
+name: Build and Push Docker Image
+
+# Produces ghcr.io/worph/aube (ported from Touchstone's workflow). `latest` follows main; a
+# `vX.Y.Z` tag additionally produces X.Y.Z and X.Y, and every build is retrievable by its sha.
+#
+# The store compose (Apps/Aube/docker-compose.yml) pins an exact version, never `latest`, so a
+# release is: bump the versions, commit, tag `vX.Y.Z`, push both. The tag's build is the image
+# the listing names.
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Extra tag for the image (optional)'
+        required: false
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  # Spelled out: the repository is `worph/Aube`, and image names must be lowercase.
+  IMAGE_NAME: worph/aube
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      # Actions on majors that declare `runs.using: node24` (see Touchstone's workflow for why
+      # this is not deferrable housekeeping).
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # Gate the image on the suite: the answer contract, the memory path guard, the MCP
+      # endpoint's scope and the secrets handling are all covered there.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ inputs.tag }},enable=${{ inputs.tag != '' }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # The store lists both. better-sqlite3 ships glibc prebuilds for arm64, so the
+          # emulated build downloads one rather than compiling.
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

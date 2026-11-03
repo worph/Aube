@@ -443,6 +443,9 @@ Recorded at the end of M6 (2026-11-03). Each is deliberate; the sections above d
 | Icons | ImageMagick | `web/scripts/icons.mjs` (resvg) renders the PNGs from the SVGs in the repo | No system dependency |
 | Chat confirmations on memory writes | none | none for `memory_write`; `memory_delete` and `memory_restore` are confirmed in the chat (the nightly run has full access) | As in ARCHITECTURE §7 |
 | Day band with nothing to place | always shown | left out; the brief takes the full width | An empty 24h band (a failure brief, a quiet day) only took space |
+| LLM bearer | `LLM_API_KEY` in the container environment only | also **Settings → Secrets**: write-only, into `data/secrets.env`; the environment still wins | The store's `zero-config`: an install must be usable from the browser alone. Values still never reach `config.yaml` or the browser |
+| Notification links | `public_url` in config | `public_url`, else `AUBE_PUBLIC_URL` (the listing passes the platform's `APP_URL`) | The store's `own-address`: the box tells the app its address |
+| MCP endpoint token | generated on first boot | `x-compose-app.secrets` (`hex:32`) in the store listing, shared with the sidecar; first-boot generation remains for plain compose | A first-boot token never reached the sidecar's environment |
 
 Checked in a real browser on 2026-11-03 (desktop Chrome on the host, driven over CDP, plus a
 390×844 phone emulation), against the Docker image: Settings (save, Beacon discovery, LLM test),
