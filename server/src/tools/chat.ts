@@ -5,7 +5,7 @@ import { interpolate, missingVars } from '../config/interpolate.js'
 import { complete } from '../llm/client.js'
 import { probe } from '../llm/client.js'
 import { discoverCatalogue, listTools, looksLikeBeacon } from '../mcp/client.js'
-import { currentPrompt, listPromptVersions, savePrompt } from '../prompt/store.js'
+import { currentPrompt, getPromptVersion, listPromptVersions, savePrompt } from '../prompt/store.js'
 import { RunBusy } from '../run/runner.js'
 import { defineTool, error, json, text } from './registry.js'
 
@@ -45,13 +45,17 @@ export const chatTools = [
   defineTool({
     name: 'prompt_get',
     title: 'Read the master prompt',
-    description: 'The current master prompt (what goes into the brief) and its version id.',
-    input: {},
+    description:
+      'The current master prompt (what goes into the brief) and its version id, or an older version by id (from prompt_versions). To restore an old version, prompt_save its text with the note "restored #N".',
+    input: { version: z.number().int().positive().optional() },
     scope: ['chat'],
     writes: false,
-    handler: async (_a, t) => {
-      const p = currentPrompt(t.ctx)
-      return text(`Version #${p.version.id}:\n\n${p.body}`)
+    handler: async ({ version }, t) => {
+      const current = currentPrompt(t.ctx)
+      if (version === undefined || version === current.version.id) return text(`Version #${current.version.id} (current):\n\n${current.body}`)
+      const v = getPromptVersion(t.ctx, version)
+      if (!v) return error(`no master prompt version #${version}`)
+      return text(`Version #${v.id} (${v.savedAt}, by ${v.savedBy}${v.note ? `, "${v.note}"` : ''}; the current one is #${current.version.id}):\n\n${v.body}`)
     },
   }),
   defineTool({
@@ -66,7 +70,7 @@ export const chatTools = [
   defineTool({
     name: 'prompt_save',
     title: 'Save the master prompt',
-    description: 'Replace the master prompt with a new full text, saved as a new version (the old one stays in history). The user confirms after seeing the change.',
+    description: 'Replace the master prompt with a new full text (always the whole text, not a fragment), saved as a new version; older versions stay in history. The next run uses it. How to write one: aube_guide topic master-prompt.',
     input: { body: z.string().min(1).max(100_000), note: z.string().max(200).optional() },
     scope: ['chat'],
     writes: true,
@@ -92,7 +96,7 @@ export const chatTools = [
     name: 'settings_save',
     title: 'Change settings',
     description:
-      'Change the configuration with a partial object merged into the current one (null removes a key). Example: {"llm":{"base_url":"http://claude-code:9091/v1","model":"sonnet"}}. Secrets must be ${VAR} references. Validated before it is offered; the user confirms.',
+      'Change the configuration with a partial object merged into the current one (null removes a key; a list such as addons is replaced whole). Example: {"llm":{"base_url":"http://claude-code:9091/v1","model":"sonnet"}} or {"notify_at":"07:30"}. Secrets must be ${VAR} references (set values with secret_set). Validated, and refused with the reason if invalid. Every key is explained in aube_guide topic settings.',
     input: { patch: z.record(z.unknown()) },
     scope: ['chat'],
     writes: true,
@@ -165,18 +169,18 @@ export const chatTools = [
     name: 'run_preview',
     title: 'Preview the brief',
     description:
-      "Start a preview run now (does not notify, does not replace the day's brief). phase 'evening' previews tomorrow's evening run (with the wake-up time). Returns at once; the result appears on the Master prompt page.",
+      "Start a preview run now with the current master prompt: it does not notify and does not replace the day's brief. phase 'evening' previews tomorrow's evening run (with the wake-up time). Returns the run id at once; a run takes about 1–5 minutes; read the result with run_get (also shown on the app's Master prompt page).",
     input: { phase: z.enum(['morning', 'evening']).optional() },
     scope: ['chat'],
     writes: false,
     handler: async (a, t) =>
-      text(`Preview run #${t.svc.runner.start('preview', undefined, a.phase ?? 'morning')} started. It can take several minutes; open the Master prompt page to see it.`),
+      text(`Preview run #${t.svc.runner.start('preview', undefined, a.phase ?? 'morning')} started. It takes about 1–5 minutes; read it with run_get (or on the Master prompt page).`),
   }),
   defineTool({
     name: 'run_now',
     title: 'Run the brief now',
     description:
-      "Run today's brief now (phase 'morning', the default; it replaces today's brief and notifies if the notify time has passed), or prepare tomorrow's evening preview now (phase 'evening'; notified when ready).",
+      "Run today's brief now (phase 'morning', the default; it replaces today's brief and notifies if the notify time has passed), or prepare tomorrow's evening preview now (phase 'evening'; notified when ready). Returns the run id; follow it with run_get.",
     input: { phase: z.enum(['morning', 'evening']).optional() },
     scope: ['chat'],
     writes: true,
@@ -186,7 +190,7 @@ export const chatTools = [
         : "Run today's brief now? It replaces today's brief and notifies you if the notify time has already passed.",
     handler: async (a, t) => {
       try {
-        return text(`Run #${t.svc.runner.start('manual', undefined, a.phase ?? 'morning')} started. It appears on the Briefs page when ready.`)
+        return text(`Run #${t.svc.runner.start('manual', undefined, a.phase ?? 'morning')} started. It takes about 1–5 minutes; read it with run_get (or on the Briefs page).`)
       } catch (err) {
         if (err instanceof RunBusy) return error(err.message)
         throw err

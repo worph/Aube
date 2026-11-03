@@ -43,6 +43,22 @@ export async function sendAddon(ctx: AppContext, addon: Addon, b: BriefText): Pr
   return msgs.length
 }
 
+/** A test message through one add-on, from Settings and the addon_test tool. Never throws. */
+export async function testAddon(ctx: AppContext, addon: Addon): Promise<{ ok: boolean; ms: number; sent?: number; error?: string }> {
+  const started = Date.now()
+  try {
+    const sent = await sendAddon(ctx, addon, {
+      title: '☀️ Aube test',
+      headline: 'Test message: this is how the brief headline will arrive.',
+      markdown: '## Test\n- This is a test of the **full** mode.',
+      date: new Date().toISOString().slice(0, 10),
+    })
+    return { ok: true, ms: Date.now() - started, sent }
+  } catch (err) {
+    return { ok: false, ms: Date.now() - started, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
 /** One channel per enabled add-on, read from the config at send time. */
 export function addonChannels(ctx: AppContext): Channel[] {
   return ctx.config

@@ -8,7 +8,7 @@ brief is waiting in the app and a push notification tells you so.
 
 > *Aube* is French for "dawn": the brief is ready at first light.
 
-> Status: **v1.1.0** (evening preview with a wake-up time), image `ghcr.io/worph/aube:1.1.0` (amd64 + arm64). The model is in
+> Status: **v1.2.0** (admin MCP that explains itself: `aube_guide`, `aube_status`), image `ghcr.io/worph/aube:1.2.0` (amd64 + arm64). The model is in
 > [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md), the build notes in
 > [`docs/IMPLEMENTATION.md`](./docs/IMPLEMENTATION.md), and the commands in [`CLAUDE.md`](./CLAUDE.md).
 
@@ -118,7 +118,8 @@ Then, in Aube:
    must reach `aube__memory_*` through its own Beacon connection).
 4. **Master prompt**: write what you want, **Preview**.
    Or from Claude: enable **Settings → Admin MCP endpoint** and the `aube-admin` server appears
-   on Beacon with everything the chat can do (`aube-admin__prompt_get`, `…__prompt_save`,
+   on Beacon with everything the chat can do. Ask Claude "what can Aube do?": it starts from
+   `aube-admin__aube_guide` and `…__aube_status`, then (`aube-admin__prompt_get`, `…__prompt_save`,
    `…__settings_save`, `…__run_preview` / `…__run_get`, …). Its writes wait while a run is in progress.
 5. **Briefs**: turn on notifications on your phone (install the app first on iOS).
 
@@ -149,6 +150,8 @@ Data goes to `./data` (or `AUBE_DATA_DIR`). See [`CLAUDE.md`](./CLAUDE.md).
 | **M4** | PWA + web push at `notify_at`; run log and usage |
 | **M5** | MCP notification add-ons (`telegram-mcp` first) |
 | **M6** | Plain models: Aube runs the tool loop (function calling) over its toolset and MCP connections |
+| **1.1** | Evening preview with a wake-up time; admin MCP endpoint (`aube-admin` on Beacon) |
+| **1.2** | The admin MCP explains itself: `aube_guide` (what Aube is, getting started, settings reference), `aube_status` (checklist + app address), older prompt versions, `addon_test` |
 
 Details in [`docs/IMPLEMENTATION.md`](./docs/IMPLEMENTATION.md).
 

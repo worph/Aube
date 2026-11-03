@@ -248,7 +248,9 @@ interface AubeTool<A> {
 | `settings_get`, `connection_test`, `beacon_discover` | | ✓ | |
 | `settings_save` | | ✓ | ✓ |
 | `backend_ask` | | ✓ | |
-| `secrets_list`, `run_list`, `run_get` | | admin only | |
+| `secrets_list`, `run_list`, `run_get`, `aube_status` | | admin only | |
+| `aube_guide` (1.2) | | ✓ | |
+| `addon_test` (1.2) | | ✓ | |
 | `secret_set` | | admin only | |
 
 The admin endpoint serves every `chat` tool plus the `admin`-only ones, without the confirmation

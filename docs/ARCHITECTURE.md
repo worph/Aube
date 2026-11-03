@@ -323,6 +323,15 @@ Beacon) do what the administrator chat does: write the master prompt, change set
   rewrite its own master prompt, point `llm.base_url` somewhere else (which would hand over the
   LLM bearer), or set secrets. Reads stay available.
 - Prompt versions saved this way are marked `mcp`; memory changes are journaled as `mcp:admin`.
+- **It explains itself (1.2).** Beacon passes on a server's one-line description and its tools,
+  never its MCP `instructions`, so an assistant asked "what is Aube? how do I start?" would have
+  only tool names to go on. Product knowledge is therefore a tool: `aube_guide` (one topic per
+  section of `prompts/guide.md`: overview, getting started, writing a master prompt, a reference of
+  every setting, where data sources come from, phone notifications, troubleshooting), and
+  `aube_status` (the chat's status lines, a setup checklist with the next tool for each missing
+  step, and the app's address). The sidecar's description tells the assistant to start there.
+  Tool descriptions are written to be true on every surface (no "the user confirms", no "see the
+  page"): the chat announces confirmation through its catalogue's *needs confirmation* flag.
 
 ## 7. The administrator chat
 

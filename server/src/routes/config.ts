@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { AddonSchema, ConnectionSchema, type AubeConfig } from '@aube/shared'
-import { sendAddon } from '../notify/addons.js'
+import { testAddon } from '../notify/addons.js'
 import { ConfigRejected } from '../config/store.js'
 import { interpolate, missingVars, referencedVars } from '../config/interpolate.js'
 import { SecretRefused, secretSource, setSecret } from '../config/secrets.js'
@@ -61,19 +61,7 @@ export function registerConfigRoutes(app: FastifyInstance, ctx: AppContext) {
       const llm = interpolate({ ...ctx.config.raw().llm, ...(body.llm ?? {}) } as AubeConfig['llm'])
       return probe({ baseUrl: llm.base_url, apiKey: llm.api_key, model: llm.model, timeoutS: llm.timeout_s, extraBody: llm.extra_body })
     }
-    if (body.kind === 'addon') {
-      try {
-        const sent = await sendAddon(ctx, body.addon, {
-          title: '☀️ Aube test',
-          headline: 'Test message: this is how the brief headline will arrive.',
-          markdown: '## Test\n- This is a test of the **full** mode.',
-          date: new Date().toISOString().slice(0, 10),
-        })
-        return { ok: true, ms: Date.now() - started, sent }
-      } catch (err) {
-        return { ok: false, ms: Date.now() - started, error: err instanceof Error ? err.message : String(err) }
-      }
-    }
+    if (body.kind === 'addon') return testAddon(ctx, body.addon)
     const conn = interpolate(body.connection)
     try {
       if (body.kind === 'connection') {

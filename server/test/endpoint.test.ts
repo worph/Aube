@@ -132,3 +132,59 @@ describe('Aube admin MCP endpoint', () => {
     expect(textOf(await client.callTool({ name: 'secrets_list', arguments: {} }))).toContain('LLM_API_KEY')
   })
 })
+
+describe('admin endpoint: self-explanatory for an assistant (1.2)', () => {
+  it('lists the guide, status and add-on test tools', async () => {
+    const { adminUrl } = await serve(true, true)
+    const client = await connect(adminUrl, 'adm-456')
+    const names = (await client.listTools()).tools.map((t) => t.name)
+    for (const n of ['aube_guide', 'aube_status', 'addon_test']) expect(names).toContain(n)
+  })
+
+  it('serves the whole guide, or one topic', async () => {
+    const { adminUrl } = await serve(true, true)
+    const client = await connect(adminUrl, 'adm-456')
+    const all = textOf(await client.callTool({ name: 'aube_guide', arguments: {} }))
+    for (const topic of ['overview', 'getting-started', 'master-prompt', 'settings', 'sources', 'notifications', 'troubleshooting']) expect(all).toContain(`## ${topic}`)
+    const settings = textOf(await client.callTool({ name: 'aube_guide', arguments: { topic: 'settings' } }))
+    expect(settings).toContain('evening_at')
+    expect(settings).not.toContain('## overview')
+  })
+
+  it('reports status with a checklist and the app address', async () => {
+    process.env.AUBE_PUBLIC_URL = 'https://aube-test.example'
+    try {
+      const { adminUrl } = await serve(true, true)
+      const client = await connect(adminUrl, 'adm-456')
+      const s = textOf(await client.callTool({ name: 'aube_status', arguments: {} }))
+      expect(s).toContain('https://aube-test.example')
+      expect(s).toContain('[ ] master prompt written')
+      expect(s).toContain('[ ] at least one brief produced')
+      expect(s).toMatch(/\[ \] phone\/browser notifications \(0 device/)
+      expect(s).toContain('[x] memory tools reachable by the nightly run')
+    } finally {
+      delete process.env.AUBE_PUBLIC_URL
+    }
+  })
+
+  it('reads an older master prompt version', async () => {
+    const { adminUrl } = await serve(true, true)
+    const client = await connect(adminUrl, 'adm-456')
+    await client.callTool({ name: 'prompt_save', arguments: { body: 'first version' } })
+    const v1 = /#(\d+)/.exec(textOf(await client.callTool({ name: 'prompt_get', arguments: {} })))![1]!
+    await client.callTool({ name: 'prompt_save', arguments: { body: 'second version' } })
+    const old = textOf(await client.callTool({ name: 'prompt_get', arguments: { version: Number(v1) } }))
+    expect(old).toContain('first version')
+    expect(old).toContain('the current one is')
+    expect((await client.callTool({ name: 'prompt_get', arguments: { version: 9999 } })).isError).toBe(true)
+  })
+
+  it('addon_test reports a missing add-on or connection as a tool error', async () => {
+    const { adminUrl } = await serve(true, true)
+    const client = await connect(adminUrl, 'adm-456')
+    expect((await client.callTool({ name: 'addon_test', arguments: { name: 'nope' } })).isError).toBe(true)
+    const r = await client.callTool({ name: 'addon_test', arguments: { addon: { name: 'tg', connection: 'missing', tool: 'x__send' } } })
+    expect(r.isError).toBe(true)
+    expect(textOf(r)).toContain('no connection named "missing"')
+  })
+})

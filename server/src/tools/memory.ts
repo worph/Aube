@@ -56,7 +56,7 @@ export const memoryTools = [
   defineTool({
     name: 'memory_history',
     title: 'Memory history',
-    description: 'The change history of the memory, or of one file: who changed it (a run or a chat), when, and the entry id to restore.',
+    description: 'The change history of the memory, or of one file: who changed it (a run, the chat or MCP), when, and the entry id to restore.',
     input: { path: z.string().optional(), limit: z.number().int().min(1).max(200).optional() },
     scope: ['run', 'chat'],
     writes: false,

@@ -30,7 +30,7 @@ export function registerMcpEndpoint(app: FastifyInstance, ctx: AppContext, svc: 
     disabled: 'the MCP endpoint is disabled (Settings → Aube MCP endpoint)',
     name: 'aube',
     instructions:
-      "Aube's memory and past briefs. Memory is a folder of markdown files and images holding context no other tool knows; MEMORY.md is its index. Never store the status of a task, event or mail in memory: the tool that owns it is the truth.",
+      "Aube's memory and past briefs, the nightly run's toolset (to set up or change Aube, use the admin endpoint, aube-admin on Beacon). Memory is a folder of markdown files and images holding context no other tool knows; MEMORY.md is its index. Never store the status of a task, event or mail in memory: the tool that owns it is the truth.",
     context: () => {
       const inProgress = svc.runner.inProgress()
       const runId = inProgress.length === 1 ? inProgress[0]! : null
@@ -46,7 +46,7 @@ export function registerMcpEndpoint(app: FastifyInstance, ctx: AppContext, svc: 
     disabled: 'the admin MCP endpoint is disabled (Settings → Admin MCP endpoint)',
     name: 'aube-admin',
     instructions:
-      'Administration of Aube, a self-hosted morning brief: the master prompt (prompt_get, prompt_save — always send the full text), settings (settings_get, settings_save with a partial patch; secrets are ${VAR} references, set with secret_set), connection tests, previews (run_preview, then run_get to read the result), the memory and past briefs. Aube never copies the state of tasks, events or mail: the tools that own them are the truth.',
+      'Administration of Aube, a self-hosted morning brief. Start with aube_guide (what Aube is, how to set it up) and aube_status (what is set up, the app address). Tools: the master prompt (prompt_get, prompt_save — always send the full text), settings (settings_get, settings_save with a partial patch; secrets are ${VAR} references, set with secret_set), connection tests, previews (run_preview, then run_get to read the result), the memory and past briefs. Aube never copies the state of tasks, events or mail: the tools that own them are the truth.',
     context: () => ({ ctx, svc, by: 'mcp:admin', runId: null }),
     call: async (tool, args, t) => {
       if (tool.writes) {
@@ -81,7 +81,7 @@ function serve(app: FastifyInstance, ctx: AppContext, s: Surface) {
   }
 
   app.post(s.path, { preHandler: guard }, async (req, reply) => {
-    const server = new McpServer({ name: s.name, version: '1.1.0' }, { instructions: s.instructions })
+    const server = new McpServer({ name: s.name, version: '1.2.0' }, { instructions: s.instructions })
     const t = s.context()
     for (const tool of toolsFor(s.scope)) {
       server.registerTool(

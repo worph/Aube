@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import { AddonSchema } from '@aube/shared'
+import { setupChecklist, chatStatus } from '../chat/status.js'
+import { publicUrl } from '../config/public-url.js'
+import { testAddon } from '../notify/addons.js'
 import { referencedVars } from '../config/interpolate.js'
 import { SecretRefused, secretSource, setSecret } from '../config/secrets.js'
 import { briefView, getRun, listRuns, toSummary } from '../run/store.js'
@@ -10,6 +14,30 @@ import { defineTool, error, json, text } from './registry.js'
  * the Secrets form and the run log.
  */
 export const adminTools = [
+  defineTool({
+    name: 'aube_status',
+    title: 'Aube status',
+    description:
+      "What is set up and what is missing, in one call: the app's address (for the user to open it), LLM endpoint, schedule, endpoints, add-ons, push devices, master prompt, memory, last brief and run, and a setup checklist with the next step for each missing item. Call it before advising on setup or problems.",
+    input: {},
+    scope: ['admin'],
+    writes: false,
+    handler: async (_a, t) => {
+      const checks = setupChecklist(t.ctx, t.svc)
+      const url = publicUrl(t.ctx.config.get())
+      return text(
+        [
+          `# Aube status`,
+          url ? `App: ${url} (behind the box's login; Briefs page: ${url}/briefs)` : 'App address: unknown — set public_url',
+          '',
+          await chatStatus(t.ctx, t.svc),
+          '',
+          '## Setup checklist',
+          ...checks.map((c) => `- [${c.ok ? 'x' : ' '}] ${c.label}${c.ok ? '' : ` — next: ${c.next}`}`),
+        ].join('\n'),
+      )
+    },
+  }),
   defineTool({
     name: 'secrets_list',
     title: 'List secrets',
@@ -65,6 +93,21 @@ export const adminTools = [
       if (!b) return text(`${head}\n\n(no brief${t.svc.runner.inProgress().includes(s.id) ? ' yet: still running' : ''})`)
       const wake = b.wakeUp ? `\nrecommended wake-up: ${b.wakeUp.time}${b.wakeUp.reason ? ` (${b.wakeUp.reason})` : ''}` : ''
       return text(`${head}\n\n# ${b.title}\n${b.headline}${wake}\n\n${b.markdown}`)
+    },
+  }),
+  defineTool({
+    name: 'addon_test',
+    title: 'Test a notification add-on',
+    description:
+      'Send a real test message through a notification add-on (e.g. Telegram): a configured one by name, or a candidate add-on object (shape in aube_guide topic settings) before saving it.',
+    input: { name: z.string().optional(), addon: AddonSchema.optional() },
+    scope: ['chat', 'admin'],
+    writes: true,
+    handler: async ({ name, addon }, t) => {
+      const a = addon ?? (name ? t.ctx.config.raw().addons.find((x) => x.name === name) : undefined)
+      if (!a) return error(name ? `no add-on named "${name}"` : 'give an add-on name or an add-on object')
+      const r = await testAddon(t.ctx, a)
+      return r.ok ? text(`Sent ${r.sent} test message(s) through "${a.name}" in ${r.ms} ms.`) : error(`"${a.name}" failed: ${r.error}`)
     },
   }),
 ]
