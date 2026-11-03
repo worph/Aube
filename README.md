@@ -8,9 +8,9 @@ brief is waiting in the app and a push notification tells you so.
 
 > *Aube* is French for "dawn": the brief is ready at first light.
 
-> Status: **design / pre-code.** This repo holds three documents: this README (what and why),
-> [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) (the model), and
-> [`docs/IMPLEMENTATION.md`](./docs/IMPLEMENTATION.md) (how we build it).
+> Status: **v0.1.0, milestones M0–M6 implemented** (not yet deployed). The model is in
+> [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md), the build notes in
+> [`docs/IMPLEMENTATION.md`](./docs/IMPLEMENTATION.md), and the commands in [`CLAUDE.md`](./CLAUDE.md).
 
 ---
 
@@ -91,12 +91,32 @@ model with no tools of its own, Aube runs the tool loop itself. See
 | Telegram and other add-ons | their MCP servers |
 | Access to the app | [AppShield](../AppShield) in front of Aube. Aube has no login of its own |
 
-## Installing (planned)
+## Installing
 
-Aube runs inside a Yundera box, like Newsdesk and Touchstone. It is one container with a data
-volume, behind AppShield. This repo is a one-app store (`Apps/Aube/docker-compose.yml` with an
-`x-casaos` block): add `https://github.com/worph/Aube/archive/refs/heads/main.zip` as a store
-source. HTTPS (the box's `nsl.sh` subdomain) is required for the PWA and web push.
+Aube runs inside a Yundera box, like Newsdesk and Touchstone: one container with a data volume,
+behind AppShield, plus a beaconify sidecar that announces Aube's memory tools to Beacon. This repo
+is a one-app store (`Apps/Aube/docker-compose.yml` with an `x-casaos` block): add
+`https://github.com/worph/Aube/archive/refs/heads/main.zip` as a store source. HTTPS (the box's
+`nsl.sh` subdomain) is required for the PWA and web push. The image is not published yet: build it
+with `docker build -f deploy/Dockerfile -t ghcr.io/worph/aube:0.1.0 .`.
+
+Then, in the app:
+
+1. **Settings → LLM**: the base URL of your OpenAI-compatible endpoint, `${LLM_API_KEY}` as the
+   key (set `LLM_API_KEY` in the container environment), a model, **Test**.
+2. **Settings → Aube MCP endpoint**: enable it so the nightly LLM can write memory (the backend
+   must reach `aube__memory_*` through its own Beacon connection).
+3. **Master prompt**: write what you want, **Preview**.
+4. **Briefs**: turn on notifications on your phone (install the app first on iOS).
+
+## Developing
+
+```bash
+npm install && npm run dev      # server on :8080, web on :5173 (proxies /api)
+npm test && npm run typecheck
+```
+
+Data goes to `./data` (or `AUBE_DATA_DIR`). See [`CLAUDE.md`](./CLAUDE.md).
 
 ## Roadmap
 

@@ -2,6 +2,7 @@ import { MemoryStore } from './memory/store.js'
 import { Notifier } from './notify/index.js'
 import { PushService } from './notify/push.js'
 import { addonChannels } from './notify/addons.js'
+import { makeToolLoop } from './llm/tool-loop.js'
 import { Runner, type RunnerOptions } from './run/runner.js'
 import { Scheduler } from './scheduler.js'
 import type { AppContext } from './context.js'
@@ -21,7 +22,9 @@ export function makeServices(ctx: AppContext, opts: Omit<RunnerOptions, 'onDone'
   notifier.addChannel(push.channel())
   notifier.addProvider(() => addonChannels(ctx))
   let scheduler: Scheduler | undefined
-  const runner = new Runner(ctx, { ...opts, onDone: (id) => scheduler?.onRunDone(id) })
+  let services: Services | undefined
+  const runner = new Runner(ctx, { toolLoop: makeToolLoop(() => services!), ...opts, onDone: (id) => scheduler?.onRunDone(id) })
   scheduler = new Scheduler(ctx, runner, notifier)
-  return { runner, notifier, scheduler, memory: new MemoryStore(ctx), push }
+  services = { runner, notifier, scheduler, memory: new MemoryStore(ctx), push }
+  return services
 }

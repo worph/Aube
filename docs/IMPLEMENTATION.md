@@ -394,6 +394,8 @@ notification. A typed URL lands on the Chat.
 
 ## 15. Milestones
 
+All seven were built on 2026-11-03, one commit each (`M0:` … `M6:` in the git log).
+
 | M | Build | Done when |
 |---|---|---|
 | **M0** | Skeleton, compose with AppShield, config + atomic save, DB, Settings with LLM Test and Beacon discovery | A wrong endpoint is refused with the reason; the `claude-code` API passes the 1-token Test |
@@ -423,3 +425,25 @@ notification. A typed URL lands on the Chat.
 | Auth | AppShield; Aube has no login |
 | Storage | SQLite + files on one volume |
 | Docs | `README.md` at the root, everything else under `docs/` |
+
+## 17. Where the build differs from this document
+
+Recorded at the end of M6 (2026-11-03). Each is deliberate; the sections above describe the plan.
+
+| Topic | Planned | Built | Why |
+|---|---|---|---|
+| Image | `rg.fr-par.scw.cloud/aptero/aube` | `ghcr.io/worph/aube` | A personal project, published like Touchstone and Newsdesk |
+| PWA files | `/manifest.webmanifest`, `/icon-*` at the root | everything under `/pwa/` | One `ALLOWED_PATHS: "pwa"` entry lets AppShield serve the manifest and icons without a login (WebAPK minting fetches them anonymously) |
+| Confirmations | Newsdesk's typed word | a Confirm / Cancel button on the card | Single user; the card already shows the diff or summary |
+| Briefs table | one row per date | one row per run (`briefs.run_id`), the day's brief derived as the latest finished non-preview run | Previews and re-runs keep their own brief without a second copy |
+| Scheduled run with no LLM configured | failure brief | skipped and logged | A fresh install should not greet you with a failure brief; not configured is not a failure |
+| Generated token | `data/.env.generated` | `data/secrets.env`, loaded for variables the environment leaves unset | Same idea; the environment always wins |
+| Add-on link mode without `public_url` | refused at save | the link is left out | Friendlier, and the rest of the message is still useful |
+| Busy backend on a Preview | wait | fail at once as `busy` | Someone is watching a Preview; waiting minutes silently is worse |
+| Icons | ImageMagick | `web/scripts/icons.mjs` (resvg) renders the PNGs from the SVGs in the repo | No system dependency |
+| Chat confirmations on memory writes | none | none for `memory_write`; `memory_delete` and `memory_restore` are confirmed in the chat (the nightly run has full access) | As in ARCHITECTURE §7 |
+
+Not verified in a real browser during the build: the in-container browser MCP answered
+`421 Misdirected Request`, and pulling a headless-Chrome image was not allowed. The pages were
+checked through the API, the type checker and a production build; web push was tested with a
+mocked push service. A first look on a real phone is still to do.

@@ -81,7 +81,7 @@ export class Scheduler {
     const now = this.ctx.now()
     const date = this.today()
     if (now >= atLocal(date, cfg.run_at, cfg.timezone) && !this.hasRealRun(date)) {
-      this.ctx.log(`catch-up: no run yet for ${date}, starting one`)
+      if (cfg.llm.base_url) this.ctx.log(`catch-up: no run yet for ${date}, starting one`)
       this.fireRun()
     }
     if (now >= atLocal(date, cfg.notify_at, cfg.timezone)) this.notifier.notifyDue(date)
