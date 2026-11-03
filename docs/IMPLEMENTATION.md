@@ -108,7 +108,7 @@ mcp_endpoint:
   enabled: true
   token: ${AUBE_MCP_TOKEN}                    # the beaconify sidecar sends it as a bearer token
 
-admin_endpoint:                               # v1.2: /mcp/admin, the admin toolset
+admin_endpoint:                               # v1.1: /mcp/admin, the admin toolset
   enabled: false
   token: ${AUBE_ADMIN_MCP_TOKEN}              # its own sidecar (aube-admin-mcp), its own token
 
@@ -258,7 +258,7 @@ Four surfaces render the registry:
 
 - **MCP endpoint** (`/mcp`, Streamable HTTP): `run` tools only, bearer token required. When
   `mcp_endpoint.enabled` is false the route isn't registered at all.
-- **Admin MCP endpoint** (`/mcp/admin`, v1.2): `chat` + `admin` tools, its own bearer token, a 404
+- **Admin MCP endpoint** (`/mcp/admin`, v1.1): `chat` + `admin` tools, its own bearer token, a 404
   while `admin_endpoint.enabled` is false; writes refused while a run is in progress.
 - **Chat loop**: `chat` tools, described in the prompt's catalogue.
 - **Function-calling loop** (tool mode `aube`): `run` tools plus the tools of `tool_connections`.

@@ -310,7 +310,7 @@ prompt. The chat gets everything. Aube's MCP endpoint (`/mcp`, announced as `aub
 the run toolset, so anyone who can see `aube` on Beacon can at most touch memory (which is
 journaled and restorable) and read briefs.
 
-**The admin endpoint (v1.2)** is a second MCP endpoint, `/mcp/admin`, announced as `aube-admin` by
+**The admin endpoint (v1.1)** is a second MCP endpoint, `/mcp/admin`, announced as `aube-admin` by
 its own beaconify sidecar, with its own token and its own switch (off by default). It serves the
 **admin toolset**: every chat tool, plus a few that stand in for what the pages do without a model
 (`secrets_list`, `secret_set`, `run_list`, `run_get`). It lets another assistant (Claude through

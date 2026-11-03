@@ -65,7 +65,7 @@ export const ConfigSchema = z.object({
       token: z.string().default(''),
     })
     .default({}),
-  /** The admin MCP endpoint at /mcp/admin (v1.2): everything the chat can do, for another assistant. */
+  /** The admin MCP endpoint at /mcp/admin (v1.1): everything the chat can do, for another assistant. */
   admin_endpoint: z
     .object({
       enabled: z.boolean().default(false),
