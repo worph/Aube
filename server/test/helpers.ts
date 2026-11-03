@@ -15,5 +15,5 @@ export function tempDir(prefix = 'aube-'): string {
 export function makeContext(): AppContext {
   const paths = pathsFor(tempDir())
   firstBoot(paths, () => {})
-  return { paths, config: new ConfigStore(paths.config), db: openDb(paths.db), log: () => {} }
+  return { paths, config: new ConfigStore(paths.config), db: openDb(paths.db), log: () => {}, now: () => new Date() }
 }

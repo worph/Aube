@@ -5,12 +5,15 @@ import Fastify, { type FastifyInstance } from 'fastify'
 import fastifyStatic from '@fastify/static'
 import type { AppContext } from './context.js'
 import { registerConfigRoutes } from './routes/config.js'
+import { registerBriefRoutes } from './routes/briefs.js'
+import { registerPromptRoutes } from './routes/prompt.js'
+import type { Services } from './services.js'
 
 /**
  * The HTTP surface. No login: Aube sits behind AppShield (ARCHITECTURE invariant 9) and never
  * binds a host port itself.
  */
-export async function buildApp(ctx: AppContext, opts: { serveWeb?: boolean } = {}): Promise<FastifyInstance> {
+export async function buildApp(ctx: AppContext, svc: Services, opts: { serveWeb?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: false, bodyLimit: 8 * 1024 * 1024 })
 
   app.setErrorHandler((err: Error & { statusCode?: number }, _req, reply) => {
@@ -23,6 +26,8 @@ export async function buildApp(ctx: AppContext, opts: { serveWeb?: boolean } = {
   app.get('/health', async () => ({ ok: true }))
 
   registerConfigRoutes(app, ctx)
+  registerBriefRoutes(app, ctx, svc)
+  registerPromptRoutes(app, ctx)
 
   if (opts.serveWeb) {
     const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public')

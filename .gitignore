@@ -4,3 +4,4 @@ dist/
 server/public/
 data/
 .env
+*.tmp.mts

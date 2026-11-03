@@ -96,3 +96,38 @@ export const saveConfig = (config: AubeConfig) => api<ConfigResponse>('/api/v1/c
 export const testLlm = (llm: AubeConfig['llm']) => api<LlmProbe>('/api/v1/config/test', { method: 'POST', json: { kind: 'llm', llm } })
 export const testConnection = (connection: Connection, kind: 'connection' | 'beacon') =>
   api<ConnectionProbe>('/api/v1/config/test', { method: 'POST', json: { kind, connection } })
+
+import type { BriefListItem, BriefView, RunSummary, ScheduleInfo } from '@aube/shared'
+
+export interface BriefsResponse {
+  briefs: BriefListItem[]
+  schedule: ScheduleInfo
+  today: string
+}
+export interface RunDetail {
+  run: RunSummary
+  brief: BriefView | null
+  artifacts: Array<{ id: number; kind: string; body: string; at: string }>
+}
+export interface PromptVersionMeta {
+  id: number
+  savedAt: string
+  savedBy: string
+  note: string | null
+}
+export interface PromptResponse {
+  body: string
+  versionId: number
+  versions: PromptVersionMeta[]
+}
+
+export const getBriefs = () => api<BriefsResponse>('/api/v1/briefs')
+export const getBrief = (date: string) => api<BriefView>(`/api/v1/briefs/${date}`)
+export const getRun = (id: number) => api<RunDetail>(`/api/v1/runs/${id}`)
+export const startRun = (kind: 'manual' | 'preview', date?: string) => api<{ runId: number }>('/api/v1/runs', { method: 'POST', json: { kind, ...(date ? { date } : {}) } })
+export const getPrompt = () => api<PromptResponse>('/api/v1/prompt')
+export const getPromptVersion = (id: number) => api<PromptVersionMeta & { body: string }>(`/api/v1/prompt/versions/${id}`)
+export const savePrompt = (body: string, note?: string) => api<{ versionId: number }>('/api/v1/prompt', { method: 'PUT', json: { body, ...(note ? { note } : {}) } })
+export const restorePrompt = (id: number) => api<{ versionId: number }>(`/api/v1/prompt/versions/${id}/restore`, { method: 'POST' })
+
+export const isRunning = (s?: string) => s === 'PENDING' || s === 'RUNNING'
